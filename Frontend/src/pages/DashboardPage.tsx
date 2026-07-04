@@ -155,7 +155,7 @@ function AdminDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard
           label="Total Employees"
-          value={getEmployees().length}
+          value={employees.length}
           icon={<Users size={20} />}
           color="accent"
         />
