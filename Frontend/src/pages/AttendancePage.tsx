@@ -4,6 +4,7 @@ import {
   getAttendanceRecords,
   getAttendanceByEmployee,
   checkIn,
+  checkOut,
 } from '../services/attendanceService';
 import { getEmployees } from '../services/employeeService';
 import type { AttendanceRecord, Employee } from '../types';
@@ -233,11 +234,19 @@ function EmployeeAttendanceView() {
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayRecord = records.find(r => r.date === todayStr);
-  const needsCheckIn = (!todayRecord || todayRecord.status === 'absent') && year === now.getFullYear() && month === now.getMonth() + 1;
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+  const needsCheckIn = (!todayRecord || todayRecord.status === 'absent') && isCurrentMonth;
+  const needsCheckOut = todayRecord && todayRecord.status === 'present' && !todayRecord.checkOut && isCurrentMonth;
 
   const handleCheckIn = async () => {
     await checkIn(employeeId);
     toast.success('Checked in successfully');
+    setForceUpdate(n => n + 1);
+  };
+
+  const handleCheckOut = async () => {
+    await checkOut(employeeId);
+    toast.success('Checked out successfully');
     setForceUpdate(n => n + 1);
   };
 
@@ -257,6 +266,34 @@ function EmployeeAttendanceView() {
 
   const monthName = new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
+  // Generate full month records
+  const fullMonthRecords = useMemo(() => {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const result = [];
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    for (let i = daysInMonth; i >= 1; i--) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      const d = new Date(year, month - 1, i);
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const isFuture = d > today;
+      
+      const existing = records.find(r => r.date === dateStr);
+      if (existing) {
+        result.push(existing);
+      } else {
+        result.push({
+          id: `mock-${dateStr}`,
+          employeeId,
+          date: dateStr,
+          status: isFuture ? 'absent' : (isWeekend ? 'weekend' : 'absent'), // Custom statuses for UI
+        } as unknown as AttendanceRecord);
+      }
+    }
+    return result;
+  }, [records, year, month, employeeId]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       
@@ -268,6 +305,18 @@ function EmployeeAttendanceView() {
           </div>
           <button onClick={handleCheckIn} className="btn-primary h-9 text-xs gap-2">
             Check In <ArrowRight size={14} />
+          </button>
+        </div>
+      )}
+
+      {needsCheckOut && (
+        <div className="bg-status-green/10 border border-status-green/20 rounded-xl p-4 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3 text-status-green">
+            <Clock size={20} />
+            <span className="font-medium text-sm">You are currently checked in. Don't forget to check out!</span>
+          </div>
+          <button onClick={handleCheckOut} className="btn-primary bg-status-green hover:bg-status-green/80 h-9 text-xs gap-2">
+            Check Out <ArrowRight size={14} />
           </button>
         </div>
       )}
@@ -326,8 +375,8 @@ function EmployeeAttendanceView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-700/50">
-              {records.map((record, idx) => (
-                <tr key={record.id} className={`hover:bg-surface-700/30 transition-colors ${idx % 2 === 0 ? 'bg-surface-800' : 'bg-surface-800/40'}`}>
+              {fullMonthRecords.map((record, idx) => (
+                <tr key={record.id} className={`hover:bg-surface-700/30 transition-colors ${idx % 2 === 0 ? 'bg-surface-800' : 'bg-surface-800/40'} ${(record as any).status === 'weekend' ? 'opacity-50' : ''}`}>
                   <td className="py-3 px-5 text-surface-200">
                     <div className="flex items-center gap-2">
                       <span className="text-surface-400 w-8">{new Date(record.date).toLocaleDateString('en-US', { weekday: 'short' })}</span>
@@ -335,7 +384,12 @@ function EmployeeAttendanceView() {
                     </div>
                   </td>
                   <td className="py-3 px-5">
-                    <StatusBadge status={record.status} />
+                    {/* Render weekend distinctively if we used the custom 'weekend' status string */}
+                    {(record as any).status === 'weekend' ? (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-700 text-surface-300">Weekend</span>
+                    ) : (
+                      <StatusBadge status={record.status} />
+                    )}
                   </td>
                   <td className="py-3 px-5 text-surface-300 font-mono text-xs">
                     {record.checkIn ? formatTime(record.checkIn) : '-'}
@@ -355,16 +409,6 @@ function EmployeeAttendanceView() {
                   </td>
                 </tr>
               ))}
-              {records.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-surface-500 bg-surface-800">
-                    <div className="flex flex-col items-center justify-center">
-                      <CalendarIcon size={32} className="mb-3 opacity-30" />
-                      <p>No attendance records for this month.</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
