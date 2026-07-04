@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Shield, Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
 import { Logo } from '../components/ui/Logo';
 
 export default function SignInPage() {

@@ -64,10 +64,12 @@ export async function seedSupabase() {
       employeeId: r.employeeId,
       startDate: r.startDate,
       endDate: r.endDate,
-      type: r.type,
+      leaveType: r.leaveType || 'paid-time-off',
       status: r.status,
-      reason: r.reason,
-      approvedBy: r.approvedBy
+      remarks: r.remarks || '',
+      adminComment: r.adminComment || '',
+      daysRequested: 1,
+      createdAt: new Date().toISOString()
     })));
     if (reqError) throw reqError;
 

@@ -38,11 +38,10 @@ export default function DashboardPage() {
 
 
 function EmployeeDashboard() {
-  const { currentUser } = useAuth();
   const navigate = useNavigate();
   
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [myActivities, setMyActivities] = useState<any[]>([]);
+  const [myActivities] = useState<any[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -113,7 +112,6 @@ function AdminDashboard() {
 
   useEffect(() => {
     async function load() {
-      const today = getLocalISODate();
       const emps = await getEmployees();
       const atts = await getAttendanceRecords();
       setEmployees(emps);

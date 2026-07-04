@@ -258,7 +258,7 @@ function PersonalInfoTab({ employee, formData, setFormData, isEditing, limitedEd
   );
 }
 
-function PrivateInfoTab({ formData, setFormData, isEditing, limitedEdit, canEdit }: TabProps) {
+function PrivateInfoTab({ formData, setFormData, isEditing, limitedEdit }: TabProps) {
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

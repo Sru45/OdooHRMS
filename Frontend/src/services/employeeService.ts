@@ -72,14 +72,15 @@ export async function updateEmployee(id: string, updates: Partial<Employee>): Pr
   delete payload.firstName;
   delete payload.lastName;
 
-  const { data, error } = await supabase.from('employees').update(payload).eq('id', id).select().single();
+  const { error } = await supabase.from('employees').update(payload).eq('id', id).select().single();
   if (error) {
     console.error('Error updating employee:', error);
     return null;
   }
   
   // Refetch to get the properly mapped firstName and lastName
-  return getEmployee(id);
+  const updatedEmp = await getEmployee(id);
+  return updatedEmp || null;
 }
 
 export async function deleteEmployee(id: string): Promise<boolean> {

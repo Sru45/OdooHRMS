@@ -7,7 +7,7 @@ import {
   getLeaveAllocations,
   getLeaveBalance,
 } from '../services/leaveService';
-import { getEmployees, getEmployee } from '../services/employeeService';
+import { getEmployees } from '../services/employeeService';
 import type { LeaveRequest, LeaveType, LeaveBalance, Employee, LeaveAllocation } from '../types';
 import { LEAVE_TYPE_LABELS } from '../types';
 import { Calendar as CalendarIcon, Clock, Plus, Search, MessageSquare, ChevronLeft, ChevronRight, X, Check, FileText } from 'lucide-react';
@@ -107,7 +107,7 @@ function AdminTimeOffTab() {
   const submitAction = async () => {
     if (!commentOpenFor || !actionType) return;
     
-    await updateLeaveRequestStatus(commentOpenFor, actionType, commentInput);
+    await updateLeaveRequestStatus(commentOpenFor, actionType === 'approve' ? 'approved' : 'rejected', commentInput);
     if (actionType === 'approve') {
       toast.success('Leave request approved');
     } else {
