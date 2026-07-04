@@ -1,8 +1,9 @@
 /**
  * Format currency in INR
  */
-export function formatCurrency(amount: number): string {
-  return '₹' + amount.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+export function formatCurrency(amount: number | null | undefined): string {
+  const validAmount = Number(amount) || 0;
+  return '₹' + validAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
 /**
