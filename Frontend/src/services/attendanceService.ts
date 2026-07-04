@@ -35,6 +35,29 @@ export async function getAttendanceByDateRange(startDate: string, endDate: strin
 export async function checkIn(employeeId: string): Promise<AttendanceRecord | null> {
   const today = getLocalISODate();
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // First, check if a record already exists for today
+  const { data: existingRecords } = await supabase.from('attendance')
+    .select('*')
+    .eq('employeeId', employeeId)
+    .eq('date', today);
+
+  if (existingRecords && existingRecords.length > 0) {
+    const record = existingRecords[0];
+    if (record.status === 'present' || record.status === 'half-day') {
+      // Already checked in today
+      console.warn('Employee already checked in today.');
+      return record as AttendanceRecord;
+    } else {
+      // Overwrite absent or missing check-in with a check-in
+      const { data, error } = await supabase.from('attendance')
+        .update({ checkIn: now, status: 'present' })
+        .eq('id', record.id)
+        .select().single();
+      if (!error) return data as AttendanceRecord;
+    }
+  }
+
   const id = 'att-' + Date.now();
   const { data, error } = await supabase.from('attendance').insert([{
     id,
@@ -64,6 +87,11 @@ export async function checkOut(employeeId: string): Promise<AttendanceRecord | n
   if (!records || records.length === 0) return null;
   
   const record = records[0];
+  if (record.checkOut) {
+    console.warn('Employee already checked out today.');
+    return record as AttendanceRecord;
+  }
+  
   const { data, error } = await supabase.from('attendance')
     .update({ checkOut: now, workHours: 8 }) // Mock 8 hours
     .eq('id', record.id).select().single();

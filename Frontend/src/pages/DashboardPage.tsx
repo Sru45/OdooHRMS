@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getEmployees } from '../services/employeeService';
-import { getAttendanceRecords, checkIn, checkOut } from '../services/attendanceService';
+import { getAttendanceRecords, checkIn, checkOut, getAttendanceByEmployee } from '../services/attendanceService';
 import { seedSupabase } from '../scripts/seedSupabase';
 import { formatDate, getLocalISODate } from '../utils/formatters';
 import type { Employee, EmployeeStatusDot } from '../types';
@@ -231,12 +231,27 @@ function AdminDashboard() {
 function CheckInOutPanel() {
   const { currentUser } = useAuth();
   const [now, setNow] = useState(new Date());
-  const [checkedIn, setCheckedIn] = useState(false); // mock for now
-  const [checkedOut, setCheckedOut] = useState(false); // mock
+  const [checkedIn, setCheckedIn] = useState(false);
+  const [checkedOut, setCheckedOut] = useState(false);
+
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    async function checkTodayStatus() {
+      if (!currentUser) return;
+      const today = getLocalISODate();
+      const records = await getAttendanceByEmployee(currentUser.employee.id);
+      const todayRecord = records.find(r => r.date === today && r.status !== 'absent');
+      if (todayRecord) {
+        if (todayRecord.checkIn) setCheckedIn(true);
+        if (todayRecord.checkOut) setCheckedOut(true);
+      }
+    }
+    checkTodayStatus();
+  }, [currentUser]);
 
   const handleCheckIn = () => {
     checkIn(currentUser!.employee.id);
