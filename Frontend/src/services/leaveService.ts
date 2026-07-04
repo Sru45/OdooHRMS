@@ -40,10 +40,14 @@ export async function getLeaveRequests(employeeId?: string): Promise<LeaveReques
 }
 
 export async function createLeaveRequest(request: Omit<LeaveRequest, 'id' | 'status'>): Promise<LeaveRequest | null> {
+  const id = 'leave-' + Date.now();
   const { data, error } = await supabase.from('leave_requests')
-    .insert([{ ...request, status: 'pending' }])
+    .insert([{ id, ...request, status: 'pending' }])
     .select().single();
-  if (error) return null;
+  if (error) {
+    console.error('Error creating leave request:', error);
+    return null;
+  }
   return data as LeaveRequest;
 }
 

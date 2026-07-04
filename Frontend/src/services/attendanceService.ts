@@ -34,14 +34,19 @@ export async function getAttendanceByDateRange(startDate: string, endDate: strin
 export async function checkIn(employeeId: string): Promise<AttendanceRecord | null> {
   const today = new Date().toISOString().split('T')[0];
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const id = 'att-' + Date.now();
   const { data, error } = await supabase.from('attendance').insert([{
+    id,
     employeeId,
     date: today,
     checkIn: now,
     status: 'present'
   }]).select().single();
   
-  if (error) return null;
+  if (error) {
+    console.error('Error during checkIn:', error);
+    return null;
+  }
   return data as AttendanceRecord;
 }
 

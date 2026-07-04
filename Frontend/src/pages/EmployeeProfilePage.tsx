@@ -73,9 +73,16 @@ function ProfileContent({ employee, tabs, isOwnProfile, isAdmin, onUpdate }: {
   const initials = `${employee.firstName[0]}${employee.lastName[0]}`.toUpperCase();
 
   const handleSave = async () => {
-    const updates: Partial<Employee> = limitedEdit
-      ? { phone: formData.phone, currentAddress: formData.currentAddress, permanentAddress: formData.permanentAddress }
-      : formData;
+    let updates: Partial<Employee> = { ...formData };
+    
+    if (limitedEdit) {
+      // Employees cannot change their work info or email
+      delete updates.department;
+      delete updates.title;
+      delete updates.dateOfJoining;
+      delete updates.role;
+      delete updates.email;
+    }
     
     const updatedEmp = await updateEmployee(employee.id, updates);
     if (updatedEmp) {
@@ -223,7 +230,7 @@ function PersonalInfoTab({ employee, formData, setFormData, isEditing, limitedEd
             <span className="w-1 h-4 bg-accent-500 rounded-full" />
             About Me
           </h3>
-          {isEditing && !limitedEdit ? (
+          {isEditing ? (
             <textarea
               value={formData.aboutMe || ''}
               onChange={e => setFormData((p) => ({ ...p, aboutMe: e.target.value }))}
@@ -260,10 +267,10 @@ function PrivateInfoTab({ formData, setFormData, isEditing, limitedEdit, canEdit
             <span className="w-1 h-4 bg-accent-500 rounded-full" />
             Personal Details
           </h3>
-          <InfoField label="Date of birth" value={formatDate(formData.dateOfBirth, 'short')} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, dateOfBirth: v }))} type="date" />
-          <InfoField label="Gender" value={formData.gender} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, gender: v as any }))} />
-          <InfoField label="Marital status" value={formData.maritalStatus} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, maritalStatus: v as any }))} />
-          <InfoField label="Blood group" value={formData.bloodGroup} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, bloodGroup: v }))} />
+          <InfoField label="Date of birth" value={formatDate(formData.dateOfBirth, 'short')} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, dateOfBirth: v }))} type="date" />
+          <InfoField label="Gender" value={formData.gender} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, gender: v as any }))} />
+          <InfoField label="Marital status" value={formData.maritalStatus} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, maritalStatus: v as any }))} />
+          <InfoField label="Blood group" value={formData.bloodGroup} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, bloodGroup: v }))} />
           <InfoField label="Date of joining" value={formatDate(formData.dateOfJoining, 'short')} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, dateOfJoining: v }))} type="date" />
         </div>
 
@@ -272,11 +279,11 @@ function PrivateInfoTab({ formData, setFormData, isEditing, limitedEdit, canEdit
             <span className="w-1 h-4 bg-accent-500 rounded-full" />
             Address & ID
           </h3>
-          <InfoField label="Current address" value={formData.currentAddress} isEditing={isEditing && canEdit} onChange={v => setFormData((p) => ({ ...p, currentAddress: v }))} />
-          <InfoField label="Permanent address" value={formData.permanentAddress} isEditing={isEditing && canEdit} onChange={v => setFormData((p) => ({ ...p, permanentAddress: v }))} />
-          <InfoField label="Personal email" value={formData.personalEmail || '-'} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, personalEmail: v }))} />
-          <InfoField label="PAN Number" value={formData.panNumber || '-'} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, panNumber: v }))} />
-          <InfoField label="Aadhar Number" value={formData.aadharNumber || '-'} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, aadharNumber: v }))} />
+          <InfoField label="Current address" value={formData.currentAddress} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, currentAddress: v }))} />
+          <InfoField label="Permanent address" value={formData.permanentAddress} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, permanentAddress: v }))} />
+          <InfoField label="Personal email" value={formData.personalEmail || '-'} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, personalEmail: v }))} />
+          <InfoField label="PAN Number" value={formData.panNumber || '-'} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, panNumber: v }))} />
+          <InfoField label="Aadhar Number" value={formData.aadharNumber || '-'} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, aadharNumber: v }))} />
         </div>
       </div>
     </div>
