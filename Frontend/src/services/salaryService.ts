@@ -22,6 +22,16 @@ export async function calculateNetSalary(structure: SalaryStructure): Promise<nu
   return structure.baseSalary + totalAllowances - totalDeductions;
 }
 
+export async function createSalaryStructure(structure: Omit<SalaryStructure, 'id'>): Promise<SalaryStructure | null> {
+  const newStructure = { ...structure, id: 'sal-' + Date.now() };
+  const { data, error } = await supabase.from('salaries').insert([newStructure]).select().single();
+  if (error) {
+    console.error('Error creating salary structure:', error);
+    return null;
+  }
+  return data as SalaryStructure;
+}
+
 export async function updateSalaryStructure(structure: SalaryStructure): Promise<SalaryStructure | null> {
   const { data, error } = await supabase.from('salaries')
     .update(structure)

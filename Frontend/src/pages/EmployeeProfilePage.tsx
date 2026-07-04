@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getEmployee, updateEmployee } from '../services/employeeService';
-import { getSalaryStructure, updateSalaryStructure } from '../services/salaryService';
+import { getSalaryStructure, updateSalaryStructure, createSalaryStructure } from '../services/salaryService';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import type { Employee, SalaryStructure } from '../types';
 import { Camera, Plus, Edit2, X, Save, Trash2 } from 'lucide-react';
@@ -316,7 +316,37 @@ function SalaryInfoAdminTab({ employeeId }: { employeeId: string }) {
   }, [employeeId]);
 
   if (loading) return <div className="text-surface-400 text-sm">Loading salary info...</div>;
-  if (!structure) return <div className="text-surface-400 text-sm">No salary structure defined for this employee.</div>;
+  if (!structure) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <div className="text-surface-400 text-sm">No salary structure defined for this employee.</div>
+        <button 
+          onClick={async () => {
+            const newStruct = await createSalaryStructure({
+              employeeId,
+              baseSalary: 0,
+              allowances: [],
+              deductions: [],
+              effectiveDate: new Date().toISOString().split('T')[0]
+            });
+            if (newStruct) {
+              setStructure(newStruct);
+              setBaseSalary(newStruct.baseSalary);
+              setAllowances(newStruct.allowances);
+              setDeductions(newStruct.deductions);
+              setEditing(true);
+              toast.success('Salary structure initialized. Please configure it.');
+            } else {
+              toast.error('Failed to create salary structure');
+            }
+          }}
+          className="btn-primary"
+        >
+          <Plus size={16}/> Initialize Salary Structure
+        </button>
+      </div>
+    );
+  }
 
   const totalAllowances = allowances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
   const totalDeductions = deductions.reduce((sum, d) => sum + Number(d.amount || 0), 0);

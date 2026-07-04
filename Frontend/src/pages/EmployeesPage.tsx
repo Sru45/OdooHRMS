@@ -193,7 +193,7 @@ function AddEmployeeModal({ onClose, onSuccess }: { onClose: () => void, onSucce
     const newEmpData: any = {
       ...formData,
       status: 'active',
-      joinDate: new Date().toISOString().split('T')[0],
+      dateOfJoining: new Date().toISOString().split('T')[0],
       loginId: formData.email.split('@')[0]
     };
 
