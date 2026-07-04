@@ -34,12 +34,27 @@ export async function getEmployee(id: string): Promise<Employee | undefined> {
 export async function createEmployee(
   employeeData: Omit<Employee, 'id'>
 ): Promise<{ success: boolean; employee?: Employee; tempPassword?: string; error?: string }> {
-  const { data, error } = await supabase.from('employees').insert([employeeData]).select().single();
+  
+  const payload: any = { ...employeeData };
+  payload.name = `${payload.firstName || ''} ${payload.lastName || ''}`.trim();
+  delete payload.firstName;
+  delete payload.lastName;
+
+  const { data, error } = await supabase.from('employees').insert([payload]).select().single();
+  
   if (error) {
     console.error('Error creating employee:', error);
     return { success: false, error: 'Failed to create employee' };
   }
-  return { success: true, employee: data as Employee, tempPassword: 'password123' };
+  
+  const nameParts = (data.name || '').split(' ');
+  const returnedEmployee = {
+    ...data,
+    firstName: nameParts[0] || 'Unknown',
+    lastName: nameParts.slice(1).join(' ') || ''
+  } as Employee;
+
+  return { success: true, employee: returnedEmployee, tempPassword: 'password123' };
 }
 
 export async function updateEmployee(id: string, updates: Partial<Employee>): Promise<Employee | null> {

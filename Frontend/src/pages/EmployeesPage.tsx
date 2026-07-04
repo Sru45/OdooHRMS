@@ -1,15 +1,22 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getEmployees } from '../services/employeeService';
+import { getEmployees, createEmployee } from '../services/employeeService';
 import type { Employee } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { X, Plus, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -20,6 +27,10 @@ export default function EmployeesPage() {
     }
     loadData();
   }, []);
+
+  const handleEmployeeAdded = (newEmp: Employee) => {
+    setEmployees(prev => [...prev, newEmp]);
+  };
 
   const departments = useMemo(() => {
     const deps = new Set(employees.map(e => e.department));
@@ -51,6 +62,15 @@ export default function EmployeesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-white">Employees</h1>
         <div className="flex items-center gap-3">
+          {isAdmin && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="h-10 px-4 bg-accent-600 hover:bg-accent-500 active:bg-accent-700 text-white font-medium text-sm rounded-lg flex items-center gap-2 transition-colors mr-2"
+            >
+              <Plus size={16} />
+              Add Employee
+            </button>
+          )}
           {/* Department Filter */}
           <select
             value={departmentFilter}
@@ -135,6 +155,115 @@ export default function EmployeesPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Add Employee Modal */}
+      {isAddModalOpen && (
+        <AddEmployeeModal
+          onClose={() => setIsAddModalOpen(false)}
+          onSuccess={handleEmployeeAdded}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddEmployeeModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: (emp: Employee) => void }) {
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    department: 'Engineering',
+    title: '',
+    role: 'employee' as 'employee' | 'admin'
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    const newEmpData: Omit<Employee, 'id'> = {
+      ...formData,
+      status: 'active',
+      joinDate: new Date().toISOString().split('T')[0],
+      loginId: formData.email.split('@')[0]
+    };
+
+    const res = await createEmployee(newEmpData);
+    setIsSubmitting(false);
+
+    if (res.success && res.employee) {
+      toast.success(`Employee added! Default password: ${res.tempPassword}`, { duration: 5000 });
+      onSuccess(res.employee);
+      onClose();
+    } else {
+      toast.error(res.error || 'Failed to add employee');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-lg bg-surface-800 border border-surface-600 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-surface-700 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">Add New Employee</h2>
+          <button onClick={onClose} className="p-2 text-surface-400 hover:text-white transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-surface-300 mb-1.5">First Name</label>
+              <input required type="text" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} className="input-base w-full" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-surface-300 mb-1.5">Last Name</label>
+              <input required type="text" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} className="input-base w-full" />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-surface-300 mb-1.5">Email</label>
+            <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="input-base w-full" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-surface-300 mb-1.5">Department</label>
+              <select required value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} className="input-base w-full">
+                <option value="Engineering">Engineering</option>
+                <option value="Design">Design</option>
+                <option value="Product">Product</option>
+                <option value="Human Resources">Human Resources</option>
+                <option value="Management">Management</option>
+                <option value="Marketing">Marketing</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-surface-300 mb-1.5">Job Title</label>
+              <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="input-base w-full" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-surface-300 mb-1.5">Role</label>
+            <select required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as any})} className="input-base w-full">
+              <option value="employee">Employee</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-surface-700">
+            <button type="button" onClick={onClose} className="btn-secondary h-10 px-5">
+              Cancel
+            </button>
+            <button type="submit" disabled={isSubmitting} className="btn-primary h-10 px-5">
+              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Add Employee'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

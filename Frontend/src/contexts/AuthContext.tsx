@@ -81,10 +81,10 @@ export function useAuth(): AuthContextType {
  * Dev Role Switcher — floating widget for demo/testing
  */
 export function DevRoleSwitcher() {
-  const { currentUser, switchUser, isAuthenticated } = useAuth();
+  const { currentUser, switchUser, isAuthenticated, isAdmin } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated || !isAdmin) return null;
 
   const allUsers = employees.map(emp => ({
     id: emp.id,

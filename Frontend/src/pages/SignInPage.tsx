@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { employees } from '../data/mockData';
 import { User, Shield, Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Logo } from '../components/ui/Logo';
@@ -15,26 +14,7 @@ export default function SignInPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  async function loginAs(role: 'employee' | 'admin') {
-    const user = role === 'admin'
-      ? employees.find(e => e.role === 'admin')
-      : employees.find(e => e.role === 'employee');
-
-    if (!user) {
-      console.error('No mock user found for role:', role);
-      return;
-    }
-
-    setIsLoading(true);
-    const result = await login(user.email, 'password123');
-    setIsLoading(false);
-    
-    if (result.success) {
-      navigate('/dashboard');
-    } else {
-      setError('Database is empty. Please run the Supabase setup script!');
-    }
-  }
+// loginAs removed for security
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,29 +105,11 @@ export default function SignInPage() {
           </button>
         </form>
 
-        {/* Demo Quick Access */}
-        <div className="mt-8 border-t border-white/10 pt-6">
-          <p className="text-xs text-center text-surface-400 mb-4">Quick access for demo</p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => loginAs('employee')}
-              disabled={isLoading}
-              className="h-10 border border-surface-600 hover:border-surface-500 text-white font-medium text-sm rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-            >
-              <User size={16} className="text-surface-400" />
-              Employee
-            </button>
-            <button
-              type="button"
-              onClick={() => loginAs('admin')}
-              disabled={isLoading}
-              className="h-10 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-            >
-              <Shield size={16} className="text-indigo-200" />
-              Admin
-            </button>
-          </div>
+        {/* Default Account Helper */}
+        <div className="mt-8 border-t border-white/10 pt-6 text-center">
+          <p className="text-sm text-surface-400">
+            Note: All default seed accounts use the password <span className="text-white font-mono bg-surface-800 px-1.5 py-0.5 rounded">password123</span>
+          </p>
         </div>
       </div>
 
