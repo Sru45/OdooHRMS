@@ -267,11 +267,11 @@ function PrivateInfoTab({ formData, setFormData, isEditing, limitedEdit, canEdit
             <span className="w-1 h-4 bg-accent-500 rounded-full" />
             Personal Details
           </h3>
-          <InfoField label="Date of birth" value={formatDate(formData.dateOfBirth, 'short')} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, dateOfBirth: v }))} type="date" />
+          <InfoField label="Date of birth" value={formData.dateOfBirth?.split('T')[0] || ''} displayValue={formatDate(formData.dateOfBirth, 'short')} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, dateOfBirth: v }))} type="date" />
           <InfoField label="Gender" value={formData.gender} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, gender: v as any }))} />
           <InfoField label="Marital status" value={formData.maritalStatus} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, maritalStatus: v as any }))} />
           <InfoField label="Blood group" value={formData.bloodGroup} isEditing={isEditing} onChange={v => setFormData((p) => ({ ...p, bloodGroup: v }))} />
-          <InfoField label="Date of joining" value={formatDate(formData.dateOfJoining, 'short')} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, dateOfJoining: v }))} type="date" />
+          <InfoField label="Date of joining" value={formData.dateOfJoining?.split('T')[0] || ''} displayValue={formatDate(formData.dateOfJoining, 'short')} isEditing={isEditing && !limitedEdit} onChange={v => setFormData((p) => ({ ...p, dateOfJoining: v }))} type="date" />
         </div>
 
         <div className="space-y-5">
@@ -584,12 +584,13 @@ function SecurityTab() {
 interface InfoFieldProps {
   label: string;
   value: string;
+  displayValue?: string;
   isEditing?: boolean;
   onChange?: (value: string) => void;
   type?: string;
 }
 
-function InfoField({ label, value, isEditing, onChange, type = "text" }: InfoFieldProps) {
+function InfoField({ label, value, displayValue, isEditing, onChange, type = "text" }: InfoFieldProps) {
   return (
     <div>
       <label className="block text-xs font-semibold text-surface-500 uppercase tracking-wide mb-1.5">{label}</label>
@@ -601,7 +602,7 @@ function InfoField({ label, value, isEditing, onChange, type = "text" }: InfoFie
           className="w-full bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-colors"
         />
       ) : (
-        <p className="text-sm font-medium text-surface-200">{value || '-'}</p>
+        <p className="text-sm font-medium text-surface-200">{displayValue || value || '-'}</p>
       )}
     </div>
   );
