@@ -105,12 +105,6 @@ export default function SignInPage() {
           </button>
         </form>
 
-        {/* Default Account Helper */}
-        <div className="mt-8 border-t border-white/10 pt-6 text-center">
-          <p className="text-sm text-surface-400">
-            Note: All default seed accounts use the password <span className="text-white font-mono bg-surface-800 px-1.5 py-0.5 rounded">password123</span>
-          </p>
-        </div>
       </div>
 
       <div className="mt-8 text-center text-sm text-surface-400">
