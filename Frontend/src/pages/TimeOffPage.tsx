@@ -1,17 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getLeaveRequests,
-  getPendingLeaveRequests,
-  submitLeaveRequest,
-  approveLeave,
-  rejectLeave,
+  createLeaveRequest,
+  updateLeaveRequestStatus,
   getLeaveAllocations,
-  updateLeaveAllocation,
   getLeaveBalance,
 } from '../services/leaveService';
-import { getEmployee, getEmployees } from '../services/employeeService';
-import type { LeaveRequest, LeaveType } from '../types';
+import { getEmployees, getEmployee } from '../services/employeeService';
+import type { LeaveRequest, LeaveType, LeaveBalance, Employee, LeaveAllocation } from '../types';
 import { LEAVE_TYPE_LABELS } from '../types';
 import { Calendar as CalendarIcon, Clock, Plus, Search, MessageSquare, ChevronLeft, ChevronRight, X, Check, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -22,7 +19,6 @@ export default function TimeOffPage() {
   const { isAdmin } = useAuth();
   return isAdmin ? <AdminTimeOff /> : <EmployeeTimeOff />;
 }
-
 
 function AdminTimeOff() {
   const [activeTab, setActiveTab] = useState<'time-off' | 'allocation'>('time-off');
@@ -58,22 +54,49 @@ function AdminTimeOffTab() {
   const [commentOpenFor, setCommentOpenFor] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState('');
   const [actionType, setActionType] = useState<'approve'|'reject' | null>(null);
-  const [, setForceUpdate] = useState(0);
+  const [forceUpdate, setForceUpdate] = useState(0);
 
-  const employees = getEmployees();
-  const allRequests = getLeaveRequests();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [allRequests, setAllRequests] = useState<LeaveRequest[]>([]);
+  
+  // Balances
+  const [totalPTO, setTotalPTO] = useState(0);
+  const [totalSick, setTotalSick] = useState(0);
+
+  useEffect(() => {
+    async function load() {
+      const emps = await getEmployees();
+      setEmployees(emps);
+      const reqs = await getLeaveRequests();
+      setAllRequests(reqs);
+
+      let ptoSum = 0;
+      let sickSum = 0;
+      const currentYear = new Date().getFullYear();
+      for (const e of emps) {
+        const pto = await getLeaveBalance(e.id, 'paid-time-off', currentYear);
+        const sick = await getLeaveBalance(e.id, 'sick-leave', currentYear);
+        ptoSum += pto.available;
+        sickSum += sick.available;
+      }
+      setTotalPTO(ptoSum);
+      setTotalSick(sickSum);
+    }
+    load();
+  }, [forceUpdate]);
+
   const filteredRequests = useMemo(() => {
     if (!search) return allRequests;
     const q = search.toLowerCase();
     return allRequests.filter(r => {
-      const emp = getEmployee(r.employeeId);
+      const emp = employees.find(e => e.id === r.employeeId);
       return emp && (
         emp.firstName.toLowerCase().includes(q) ||
         emp.lastName.toLowerCase().includes(q) ||
         r.leaveType.toLowerCase().includes(q)
       );
     });
-  }, [allRequests, search]);
+  }, [allRequests, employees, search]);
 
   const handleActionClick = (id: string, type: 'approve'|'reject') => {
     setCommentOpenFor(id);
@@ -81,15 +104,16 @@ function AdminTimeOffTab() {
     setCommentInput('');
   };
 
-  const submitAction = () => {
+  const submitAction = async () => {
     if (!commentOpenFor || !actionType) return;
+    
+    await updateLeaveRequestStatus(commentOpenFor, actionType, commentInput);
     if (actionType === 'approve') {
-      approveLeave(commentOpenFor, commentInput);
       toast.success('Leave request approved');
     } else {
-      rejectLeave(commentOpenFor, commentInput);
       toast.success('Leave request rejected');
     }
+    
     setCommentOpenFor(null);
     setCommentInput('');
     setActionType(null);
@@ -102,10 +126,7 @@ function AdminTimeOffTab() {
     setActionType(null);
   };
 
-  // Balance summary
-  const totalPTO = employees.reduce((sum, e) => sum + getLeaveBalance(e.id, 'paid-time-off').available, 0);
-  const totalSick = employees.reduce((sum, e) => sum + getLeaveBalance(e.id, 'sick-leave').available, 0);
-  const pendingRequests = getPendingLeaveRequests();
+  const pendingRequests = allRequests.filter(r => r.status === 'pending');
 
   return (
     <div className="space-y-8">
@@ -164,7 +185,7 @@ function AdminTimeOffTab() {
       {/* Card-based Requests List */}
       <div className="space-y-4">
         {filteredRequests.map(req => {
-          const emp = getEmployee(req.employeeId);
+          const emp = employees.find(e => e.id === req.employeeId);
           if (!emp) return null;
           const isPending = req.status === 'pending';
           const showCommentForm = commentOpenFor === req.id;
@@ -184,7 +205,7 @@ function AdminTimeOffTab() {
                     
                     <div className="flex flex-wrap items-center gap-3 mt-3">
                       <span className="px-2.5 py-1 text-xs font-medium bg-surface-900 border border-surface-700 rounded-full text-surface-300">
-                        {LEAVE_TYPE_LABELS[req.leaveType]}
+                        {LEAVE_TYPE_LABELS[req.leaveType as LeaveType] || req.leaveType}
                       </span>
                       <span className="text-sm text-surface-300 flex items-center gap-1.5">
                         <CalendarIcon size={14} className="text-surface-500"/>
@@ -205,7 +226,7 @@ function AdminTimeOffTab() {
                 </div>
 
                 <div className="flex flex-col items-end gap-3 min-w-[140px]">
-                  <StatusBadge status={req.status} />
+                  <StatusBadge status={req.status as any} />
                   
                   {isPending && !showCommentForm && (
                     <div className="flex gap-2 mt-2">
@@ -269,15 +290,24 @@ function AdminTimeOffTab() {
 }
 
 function AdminAllocationTab() {
-  const [, setForceUpdate] = useState(0);
-  const employees = getEmployees();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [allocations, setAllocations] = useState<LeaveAllocation[]>([]);
+  
   const year = new Date().getFullYear();
-  const allocations = getLeaveAllocations(undefined, year);
 
-  const handleChange = (allocId: string, value: number) => {
-    updateLeaveAllocation(allocId, { daysAllocated: value });
-    setForceUpdate(n => n + 1);
-  };
+  useEffect(() => {
+    async function load() {
+      const emps = await getEmployees();
+      setEmployees(emps);
+      const allAllocs = [];
+      for (const e of emps) {
+        const allocs = await getLeaveAllocations(e.id, year);
+        allAllocs.push(...allocs);
+      }
+      setAllocations(allAllocs);
+    }
+    load();
+  }, [year]);
 
   const grouped = employees.map(emp => ({
     employee: emp,
@@ -286,7 +316,7 @@ function AdminAllocationTab() {
 
   return (
     <div className="space-y-6">
-      <p className="text-surface-400 text-sm">Manage leave allocations for {year}. Changes are saved automatically.</p>
+      <p className="text-surface-400 text-sm">Leave allocations for {year}. (Read only)</p>
 
       <div className="bg-surface-800 border border-surface-700 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
@@ -314,9 +344,9 @@ function AdminAllocationTab() {
                           <input
                             type="number"
                             min={0}
+                            readOnly
                             value={alloc?.daysAllocated ?? 0}
-                            onChange={e => alloc && handleChange(alloc.id, Number(e.target.value))}
-                            className="bg-surface-900 border border-surface-600 rounded w-16 text-center text-sm py-1 text-white focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+                            className="bg-surface-900 border border-surface-600 rounded w-16 text-center text-sm py-1 text-white opacity-70"
                           />
                           <span className="text-xs text-surface-500 w-16 text-left">
                             ({alloc?.daysUsed ?? 0} used)
@@ -339,15 +369,33 @@ function AdminAllocationTab() {
 function EmployeeTimeOff() {
   const { currentUser } = useAuth();
   const [showForm, setShowForm] = useState(false);
-  const [, setForceUpdate] = useState(0);
+  const [forceUpdate, setForceUpdate] = useState(0);
   const employeeId = currentUser!.employee.id;
 
-  const requests = getLeaveRequests(employeeId);
-  const ptoBalance = getLeaveBalance(employeeId, 'paid-time-off');
-  const sickBalance = getLeaveBalance(employeeId, 'sick-leave');
-  const unpaidBalance = getLeaveBalance(employeeId, 'unpaid-leave');
+  const [requests, setRequests] = useState<LeaveRequest[]>([]);
+  const [ptoBalance, setPtoBalance] = useState<LeaveBalance>({ allocated: 0, used: 0, available: 0 });
+  const [sickBalance, setSickBalance] = useState<LeaveBalance>({ allocated: 0, used: 0, available: 0 });
+  const [unpaidBalance, setUnpaidBalance] = useState<LeaveBalance>({ allocated: 0, used: 0, available: 0 });
 
-  const handleSubmit = (data: {
+  useEffect(() => {
+    async function load() {
+      const currentYear = new Date().getFullYear();
+      
+      const reqs = await getLeaveRequests(employeeId);
+      setRequests(reqs);
+
+      const pto = await getLeaveBalance(employeeId, 'paid-time-off', currentYear);
+      const sick = await getLeaveBalance(employeeId, 'sick-leave', currentYear);
+      const unpaid = await getLeaveBalance(employeeId, 'unpaid-leave', currentYear);
+
+      setPtoBalance(pto);
+      setSickBalance(sick);
+      setUnpaidBalance(unpaid);
+    }
+    load();
+  }, [employeeId, forceUpdate]);
+
+  const handleSubmit = async (data: {
     leaveType: LeaveType;
     startDate: string;
     endDate: string;
@@ -355,9 +403,10 @@ function EmployeeTimeOff() {
     remarks: string;
     attachmentName?: string;
   }) => {
-    submitLeaveRequest({
+    await createLeaveRequest({
       employeeId,
       ...data,
+      createdAt: new Date().toISOString()
     });
     setShowForm(false);
     toast.success('Leave request submitted');
@@ -398,7 +447,7 @@ function EmployeeTimeOff() {
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div>
                     <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                      {LEAVE_TYPE_LABELS[req.leaveType]}
+                      {LEAVE_TYPE_LABELS[req.leaveType as LeaveType] || req.leaveType}
                     </h3>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-surface-300">
                       <span className="flex items-center gap-1.5">
@@ -411,7 +460,7 @@ function EmployeeTimeOff() {
                       </span>
                     </div>
                   </div>
-                  <StatusBadge status={req.status} />
+                  <StatusBadge status={req.status as any} />
                 </div>
                 
                 {req.remarks && (
@@ -618,7 +667,7 @@ function LeaveCalendar({ requests }: { requests: LeaveRequest[] }) {
 
   // Map dates to leave info
   const leaveDates = useMemo(() => {
-    const map = new Map<string, { type: LeaveType; status: string }>();
+    const map = new Map<string, { type: string; status: string }>();
     for (const req of requests) {
       if (req.status === 'rejected') continue;
       const start = new Date(req.startDate);
@@ -643,11 +692,9 @@ function LeaveCalendar({ requests }: { requests: LeaveRequest[] }) {
   };
 
   const cells: React.ReactNode[] = [];
-  // Empty cells for days before first day
   for (let i = 0; i < firstDayOfWeek; i++) {
     cells.push(<div key={`empty-${i}`} className="h-10" />);
   }
-  // Day cells
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const leave = leaveDates.get(dateStr);
@@ -670,7 +717,7 @@ function LeaveCalendar({ requests }: { requests: LeaveRequest[] }) {
         className={`h-10 flex items-center justify-center rounded-lg text-sm transition-colors ${bgColor} ${
           isToday && !leave ? 'bg-surface-700/50 text-white font-bold ring-1 ring-inset ring-accent-500' : ''
         } ${!leave && !isToday ? 'text-surface-400 hover:bg-surface-800' : ''}`}
-        title={leave ? `${LEAVE_TYPE_LABELS[leave.type]} (${leave.status})` : ''}
+        title={leave ? `${LEAVE_TYPE_LABELS[leave.type as LeaveType] || leave.type} (${leave.status})` : ''}
       >
         {day}
       </div>
@@ -717,5 +764,3 @@ function LeaveCalendar({ requests }: { requests: LeaveRequest[] }) {
     </div>
   );
 }
-
-

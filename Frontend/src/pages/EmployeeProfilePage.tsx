@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getEmployee, updateEmployee } from '../services/employeeService';
-import { getSalaryStructure, updateSalaryStructure, addSalaryComponent, removeSalaryComponent } from '../services/salaryService';
-import { computeSalary } from '../utils/salaryCalculator';
+import { getSalaryStructure, updateSalaryStructure } from '../services/salaryService';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import type { Employee, SalaryStructure } from '../types';
-import { Camera, CheckCircle2, AlertCircle, Trash2, Plus, Edit2, X, Save } from 'lucide-react';
+import { Camera, Plus, Edit2, X, Save, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function EmployeeProfilePage() {
@@ -14,9 +13,28 @@ export default function EmployeeProfilePage() {
   const { currentUser, isAdmin } = useAuth();
   const navigate = useNavigate();
 
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const employeeId = id || currentUser!.employee.id;
-  const employee = getEmployee(employeeId);
   const isOwnProfile = currentUser!.employee.id === employeeId;
+
+  useEffect(() => {
+    async function load() {
+      const emp = await getEmployee(employeeId);
+      setEmployee(emp ?? null);
+      setLoading(false);
+    }
+    load();
+  }, [employeeId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 animate-fade-in">
+        <p className="text-surface-400">Loading profile...</p>
+      </div>
+    );
+  }
 
   if (!employee) {
     return (
@@ -30,6 +48,7 @@ export default function EmployeeProfilePage() {
       </div>
     );
   }
+  
   let tabs: string[];
   if (isAdmin) {
     tabs = ['Personal Info', 'Private Info', 'Salary Info'];
@@ -39,11 +58,11 @@ export default function EmployeeProfilePage() {
     tabs = ['Personal Info'];
   }
 
-  return <ProfileContent employee={employee} tabs={tabs} isOwnProfile={isOwnProfile} isAdmin={isAdmin} />;
+  return <ProfileContent employee={employee} tabs={tabs} isOwnProfile={isOwnProfile} isAdmin={isAdmin} onUpdate={setEmployee} />;
 }
 
-function ProfileContent({ employee, tabs, isOwnProfile, isAdmin }: {
-  employee: Employee; tabs: string[]; isOwnProfile: boolean; isAdmin: boolean;
+function ProfileContent({ employee, tabs, isOwnProfile, isAdmin, onUpdate }: {
+  employee: Employee; tabs: string[]; isOwnProfile: boolean; isAdmin: boolean; onUpdate: (e: Employee) => void;
 }) {
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [isEditing, setIsEditing] = useState(false);
@@ -53,13 +72,19 @@ function ProfileContent({ employee, tabs, isOwnProfile, isAdmin }: {
   const limitedEdit = isOwnProfile && !isAdmin;
   const initials = `${employee.firstName[0]}${employee.lastName[0]}`.toUpperCase();
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const updates: Partial<Employee> = limitedEdit
-      ? { phone: formData.phone, currentAddress: formData.currentAddress, permanentAddress: formData.permanentAddress } // Added addresses for employee self-edit
+      ? { phone: formData.phone, currentAddress: formData.currentAddress, permanentAddress: formData.permanentAddress }
       : formData;
-    updateEmployee(employee.id, updates);
-    setIsEditing(false);
-    toast.success('Profile updated');
+    
+    const updatedEmp = await updateEmployee(employee.id, updates);
+    if (updatedEmp) {
+      onUpdate(updatedEmp);
+      setIsEditing(false);
+      toast.success('Profile updated');
+    } else {
+      toast.error('Failed to update profile');
+    }
   };
 
   const handleCancel = () => {
@@ -212,12 +237,12 @@ function PersonalInfoTab({ employee, formData, setFormData, isEditing, limitedEd
           <div>
             <h4 className="text-xs font-semibold text-surface-500 mb-2 uppercase">Skills</h4>
             <div className="flex flex-wrap gap-2">
-              {employee.skills.map((skill: string) => (
+              {employee.skills?.map((skill: string) => (
                 <span key={skill} className="bg-surface-700 text-surface-200 px-2.5 py-1 rounded-md text-xs border border-surface-600">
                   {skill}
                 </span>
               ))}
-              {employee.skills.length === 0 && <span className="text-xs text-surface-500">None added</span>}
+              {(!employee.skills || employee.skills.length === 0) && <span className="text-xs text-surface-500">None added</span>}
             </div>
           </div>
         </div>
@@ -258,63 +283,64 @@ function PrivateInfoTab({ formData, setFormData, isEditing, limitedEdit, canEdit
   );
 }
 
+
 function SalaryInfoAdminTab({ employeeId }: { employeeId: string }) {
-  const [structure, setStructure] = useState<SalaryStructure | null>(() => getSalaryStructure(employeeId) ?? null);
+  const [structure, setStructure] = useState<SalaryStructure | null>(null);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [newCompName, setNewCompName] = useState('');
+  
+  // Working copy for edits
+  const [baseSalary, setBaseSalary] = useState(0);
+  const [allowances, setAllowances] = useState<{name:string, amount:number}[]>([]);
+  const [deductions, setDeductions] = useState<{name:string, amount:number}[]>([]);
 
-  if (!structure) {
-    return <div className="text-surface-400 text-sm">No salary structure defined for this employee.</div>;
-  }
-
-  const computed = computeSalary(structure);
-  const totalComputed = computed.components.reduce((sum, c) => sum + (c.computedAmount ?? 0), 0);
-  const matchesTotal = Math.abs(totalComputed - structure.totalWage) < 1;
-
-  const handleWageChange = (value: number) => {
-    const updated = { ...structure, totalWage: value };
-    setStructure(updated);
-  };
-
-  const handleComponentChange = (compId: string, field: string, value: number | string) => {
-    const updated = {
-      ...structure,
-      components: structure.components.map(c =>
-        c.id === compId ? { ...c, [field]: value } : c
-      ),
-    };
-    setStructure(updated);
-  };
-
-  const handleSave = () => {
-    if (!computed.isValid) {
-      toast.error('Total components exceed wage. Please adjust values before saving.');
-      return;
+  useEffect(() => {
+    async function load() {
+      const s = await getSalaryStructure(employeeId);
+      if (s) {
+        setStructure(s);
+        setBaseSalary(s.baseSalary);
+        setAllowances([...s.allowances]);
+        setDeductions([...s.deductions]);
+      }
+      setLoading(false);
     }
-    updateSalaryStructure(employeeId, structure);
+    load();
+  }, [employeeId]);
+
+  if (loading) return <div className="text-surface-400 text-sm">Loading salary info...</div>;
+  if (!structure) return <div className="text-surface-400 text-sm">No salary structure defined for this employee.</div>;
+
+  const totalAllowances = allowances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+  const totalDeductions = deductions.reduce((sum, d) => sum + Number(d.amount || 0), 0);
+  const netSalary = Number(baseSalary || 0) + totalAllowances - totalDeductions;
+
+  const handleSave = async () => {
+    const updated: SalaryStructure = {
+      ...structure,
+      baseSalary: Number(baseSalary),
+      allowances,
+      deductions
+    };
+    const res = await updateSalaryStructure(updated);
+    if (res) {
+      setStructure(res);
+      setEditing(false);
+      toast.success('Salary structure updated');
+    } else {
+      toast.error('Failed to update salary structure');
+    }
+  };
+
+  const handleCancel = () => {
+    setBaseSalary(structure.baseSalary);
+    setAllowances([...structure.allowances]);
+    setDeductions([...structure.deductions]);
     setEditing(false);
-    toast.success('Salary structure updated');
-  };
-
-  const handleAddComponent = () => {
-    if (!newCompName.trim()) return;
-    const result = addSalaryComponent(employeeId, {
-      name: newCompName.trim(),
-      computationType: 'fixed',
-      fixedAmount: 0,
-      order: structure.components.length,
-    });
-    if (result) setStructure({ ...result });
-    setNewCompName('');
-  };
-
-  const handleRemoveComponent = (compId: string) => {
-    const result = removeSalaryComponent(employeeId, compId);
-    if (result) setStructure({ ...result });
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in max-w-3xl">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
           <span className="w-1 h-4 bg-accent-500 rounded-full" />
@@ -322,167 +348,102 @@ function SalaryInfoAdminTab({ employeeId }: { employeeId: string }) {
         </h3>
         {editing ? (
           <div className="flex gap-2">
-            <button onClick={() => { setStructure(getSalaryStructure(employeeId) ?? null); setEditing(false); }} className="btn-secondary h-8 text-xs">Cancel</button>
-            <button onClick={handleSave} disabled={!computed.isValid} className="btn-primary h-8 text-xs disabled:opacity-50"><Save size={14}/> Save</button>
+            <button onClick={handleCancel} className="btn-secondary h-8 text-xs">Cancel</button>
+            <button onClick={handleSave} className="btn-primary h-8 text-xs"><Save size={14}/> Save</button>
           </div>
         ) : (
           <button onClick={() => setEditing(true)} className="btn-secondary h-8 text-xs"><Edit2 size={14}/> Edit Structure</button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-surface-900 border border-surface-700 p-4 rounded-lg">
-          <label className="text-xs font-semibold text-surface-500 uppercase tracking-wide">Wage Type</label>
-          <p className="text-white mt-1 capitalize font-medium">{structure.wageType}</p>
-        </div>
-        <div className="bg-surface-900 border border-surface-700 p-4 rounded-lg">
-          <label className="text-xs font-semibold text-surface-500 uppercase tracking-wide">Total Wage</label>
+          <label className="text-xs font-semibold text-surface-500 uppercase tracking-wide">Base Salary</label>
           {editing ? (
             <input
               type="number"
-              value={structure.totalWage}
-              onChange={e => handleWageChange(Number(e.target.value))}
-              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1 text-sm mt-1 text-white focus:border-accent-500 focus:ring-1 focus:ring-accent-500 outline-none"
+              value={baseSalary}
+              onChange={e => setBaseSalary(Number(e.target.value))}
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1 text-sm mt-1 text-white focus:border-accent-500 focus:ring-1 outline-none"
             />
           ) : (
-            <p className="text-white text-lg font-bold mt-1">{formatCurrency(structure.totalWage)}</p>
+            <p className="text-white text-lg font-bold mt-1">{formatCurrency(baseSalary)}</p>
           )}
         </div>
         <div className="bg-surface-900 border border-surface-700 p-4 rounded-lg">
-          <label className="text-xs font-semibold text-surface-500 uppercase tracking-wide">Work Schedule</label>
-          <p className="text-white mt-1 font-medium">{structure.workingDaysPerWeek} days/week · {structure.standardWorkHoursPerDay}h/day</p>
+          <label className="text-xs font-semibold text-surface-500 uppercase tracking-wide">Net Salary</label>
+          <p className="text-[#22c55e] text-lg font-bold mt-1">{formatCurrency(netSalary)}</p>
         </div>
       </div>
 
-      <div className="border border-surface-700 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-900/50">
-            <tr>
-              <th className="text-left py-3 px-4 font-semibold text-surface-400">Earnings Component</th>
-              <th className="text-left py-3 px-4 font-semibold text-surface-400">Computation</th>
-              <th className="text-right py-3 px-4 font-semibold text-surface-400">Amount</th>
-              {editing && <th className="w-10"></th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-800">
-            {computed.components.sort((a, b) => a.order - b.order).map(comp => (
-              <tr key={comp.id} className="hover:bg-surface-900/30 transition-colors">
-                <td className="py-3 px-4">
-                  <span className="font-medium text-surface-200">{comp.name}</span>
-                  {comp.isFixedAllowance && <span className="text-[10px] text-surface-500 ml-2 uppercase tracking-wide bg-surface-800 px-1.5 py-0.5 rounded">(Auto-calculated)</span>}
-                </td>
-                <td className="py-3 px-4">
-                  {editing && !comp.isFixedAllowance ? (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={comp.computationType}
-                        onChange={e => handleComponentChange(comp.id, 'computationType', e.target.value)}
-                        className="bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-white outline-none focus:border-accent-500"
-                      >
-                        <option value="fixed">Fixed</option>
-                        <option value="percentage">Percentage</option>
-                      </select>
-                      {comp.computationType === 'fixed' ? (
-                        <input
-                          type="number"
-                          value={comp.fixedAmount ?? 0}
-                          onChange={e => handleComponentChange(comp.id, 'fixedAmount', Number(e.target.value))}
-                          className="w-24 bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-white outline-none focus:border-accent-500"
-                        />
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            value={comp.percentageValue ?? 0}
-                            onChange={e => handleComponentChange(comp.id, 'percentageValue', Number(e.target.value))}
-                            className="w-16 bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-white outline-none focus:border-accent-500"
-                          />
-                          <span className="text-xs text-surface-500">% of</span>
-                          <select
-                            value={comp.percentageBase ?? 'wage'}
-                            onChange={e => handleComponentChange(comp.id, 'percentageBase', e.target.value)}
-                            className="w-28 bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-white outline-none focus:border-accent-500"
-                          >
-                            <option value="wage">Total Wage</option>
-                            {structure!.components.filter(c => c.id !== comp.id && !c.isFixedAllowance).map(c => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-surface-400 text-xs">
-                      {comp.isFixedAllowance ? 'Total Wage − Sum(others)' :
-                       comp.computationType === 'percentage'
-                        ? `${comp.percentageValue}% of ${comp.percentageBase === 'wage' ? 'Total Wage' : structure!.components.find(c => c.id === comp.percentageBase)?.name ?? comp.percentageBase}`
-                        : 'Fixed Amount'
-                      }
-                    </span>
-                  )}
-                </td>
-                <td className="py-3 px-4 text-right font-mono font-medium text-white">
-                  {formatCurrency(comp.computedAmount ?? 0)}
-                </td>
-                {editing && (
-                  <td className="py-3 px-4 text-center">
-                    {!comp.isFixedAllowance && (
-                      <button onClick={() => handleRemoveComponent(comp.id)} className="text-red-400 hover:text-red-300 p-1">
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </td>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Allowances */}
+        <div className="border border-surface-700 rounded-lg overflow-hidden bg-surface-800/50">
+          <div className="bg-surface-900/50 py-3 px-4 border-b border-surface-700 flex justify-between items-center">
+            <h4 className="font-semibold text-surface-300">Allowances</h4>
+            {editing && (
+              <button onClick={() => setAllowances([...allowances, {name:'', amount:0}])} className="text-accent-400 hover:text-accent-300 text-xs flex items-center gap-1">
+                <Plus size={14} /> Add
+              </button>
+            )}
+          </div>
+          <div className="p-2 space-y-2">
+            {allowances.map((a, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                {editing ? (
+                  <>
+                    <input type="text" value={a.name} onChange={e => { const arr = [...allowances]; arr[idx].name = e.target.value; setAllowances(arr); }} className="flex-1 bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-white" placeholder="Name" />
+                    <input type="number" value={a.amount} onChange={e => { const arr = [...allowances]; arr[idx].amount = Number(e.target.value); setAllowances(arr); }} className="w-24 bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-white" placeholder="Amount" />
+                    <button onClick={() => setAllowances(allowances.filter((_, i) => i !== idx))} className="text-red-400 p-1"><Trash2 size={14}/></button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm text-surface-300">{a.name}</span>
+                    <span className="font-mono text-sm text-white">{formatCurrency(a.amount)}</span>
+                  </>
                 )}
-              </tr>
+              </div>
             ))}
-          </tbody>
-          <tfoot className="bg-surface-900/80">
-            <tr>
-              <td colSpan={2} className="py-3 px-4 font-bold text-white text-right">Total Earnings:</td>
-              <td className="py-3 px-4 text-right font-mono font-bold text-white flex justify-end items-center gap-2">
-                {formatCurrency(totalComputed)}
-                {!editing && matchesTotal && <CheckCircle2 size={16} className="text-[#22c55e]" />}
-                {!editing && !matchesTotal && <span title="Exceeds total wage"><AlertCircle size={16} className="text-[#ef4444]" /></span>}
-              </td>
-              {editing && <td></td>}
-            </tr>
-          </tfoot>
-        </table>
-        
-        {editing && (
-          <div className="flex items-center gap-2 p-3 bg-surface-900/50 border-t border-surface-700">
-            <input
-              type="text"
-              value={newCompName}
-              onChange={e => setNewCompName(e.target.value)}
-              placeholder="New component name"
-              className="bg-surface-800 border border-surface-600 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-accent-500 w-48"
-            />
-            <button onClick={handleAddComponent} className="btn-secondary h-7 text-xs px-3 py-0"><Plus size={14}/> Add Component</button>
+            {allowances.length === 0 && <p className="text-xs text-surface-500 p-2 text-center">No allowances</p>}
           </div>
-        )}
-      </div>
+          <div className="bg-surface-900/50 py-2 px-4 border-t border-surface-700 flex justify-between">
+            <span className="text-sm font-semibold text-surface-400">Total</span>
+            <span className="font-mono text-sm font-bold text-white">{formatCurrency(totalAllowances)}</span>
+          </div>
+        </div>
 
-      {/* Deductions Section */}
-      <div>
-        <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-          <span className="w-1 h-4 bg-[#ef4444] rounded-full" />
-          Deductions
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-surface-900 border border-surface-700 p-4 rounded-lg flex justify-between items-center">
-            <div>
-              <p className="text-sm font-medium text-surface-200">Provident Fund (PF)</p>
-              <p className="text-xs text-surface-500 mt-0.5">{structure.pfContributionRate}% contribution rate</p>
-            </div>
-            <p className="font-mono font-medium text-white">{formatCurrency(computed.pfAmount)}</p>
+        {/* Deductions */}
+        <div className="border border-surface-700 rounded-lg overflow-hidden bg-surface-800/50">
+          <div className="bg-surface-900/50 py-3 px-4 border-b border-surface-700 flex justify-between items-center">
+            <h4 className="font-semibold text-surface-300">Deductions</h4>
+            {editing && (
+              <button onClick={() => setDeductions([...deductions, {name:'', amount:0}])} className="text-red-400 hover:text-red-300 text-xs flex items-center gap-1">
+                <Plus size={14} /> Add
+              </button>
+            )}
           </div>
-          <div className="bg-surface-900 border border-surface-700 p-4 rounded-lg flex justify-between items-center">
-            <div>
-              <p className="text-sm font-medium text-surface-200">Professional Tax</p>
-              <p className="text-xs text-surface-500 mt-0.5">Fixed monthly amount</p>
-            </div>
-            <p className="font-mono font-medium text-white">{formatCurrency(structure.professionalTax)}</p>
+          <div className="p-2 space-y-2">
+            {deductions.map((d, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                {editing ? (
+                  <>
+                    <input type="text" value={d.name} onChange={e => { const arr = [...deductions]; arr[idx].name = e.target.value; setDeductions(arr); }} className="flex-1 bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-white" placeholder="Name" />
+                    <input type="number" value={d.amount} onChange={e => { const arr = [...deductions]; arr[idx].amount = Number(e.target.value); setDeductions(arr); }} className="w-24 bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-white" placeholder="Amount" />
+                    <button onClick={() => setDeductions(deductions.filter((_, i) => i !== idx))} className="text-red-400 p-1"><Trash2 size={14}/></button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm text-surface-300">{d.name}</span>
+                    <span className="font-mono text-sm text-[#ef4444]">{formatCurrency(d.amount)}</span>
+                  </>
+                )}
+              </div>
+            ))}
+            {deductions.length === 0 && <p className="text-xs text-surface-500 p-2 text-center">No deductions</p>}
+          </div>
+          <div className="bg-surface-900/50 py-2 px-4 border-t border-surface-700 flex justify-between">
+            <span className="text-sm font-semibold text-surface-400">Total</span>
+            <span className="font-mono text-sm font-bold text-[#ef4444]">{formatCurrency(totalDeductions)}</span>
           </div>
         </div>
       </div>
@@ -491,15 +452,27 @@ function SalaryInfoAdminTab({ employeeId }: { employeeId: string }) {
 }
 
 function SalaryReadOnlyTab({ employeeId }: { employeeId: string }) {
-  const structure = getSalaryStructure(employeeId);
+  const [structure, setStructure] = useState<SalaryStructure | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const s = await getSalaryStructure(employeeId);
+      setStructure(s ?? null);
+      setLoading(false);
+    }
+    load();
+  }, [employeeId]);
+
+  if (loading) return <div className="text-surface-400 text-sm">Loading salary info...</div>;
   if (!structure) {
     return <div className="text-surface-400 text-sm">Salary information is not available yet.</div>;
   }
 
-  const computed = computeSalary(structure);
-  const totalEarnings = computed.components.reduce((sum, c) => sum + (c.computedAmount ?? 0), 0);
-  const totalDeductions = (computed.pfAmount ?? 0) + structure.professionalTax;
-  const netSalary = totalEarnings - totalDeductions;
+  const totalAllowances = structure.allowances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+  const totalDeductions = structure.deductions.reduce((sum, d) => sum + Number(d.amount || 0), 0);
+  const netSalary = Number(structure.baseSalary) + totalAllowances - totalDeductions;
+  const totalEarnings = Number(structure.baseSalary) + totalAllowances;
 
   return (
     <div className="space-y-8 animate-fade-in max-w-2xl">
@@ -510,22 +483,22 @@ function SalaryReadOnlyTab({ employeeId }: { employeeId: string }) {
 
       <div className="bg-surface-900 border border-surface-700 rounded-lg overflow-hidden">
         <div className="p-4 border-b border-surface-700 flex justify-between items-center bg-surface-800">
-          <span className="text-sm font-medium text-surface-300 capitalize">{structure.wageType} Wage</span>
-          <span className="text-lg font-bold text-white">{formatCurrency(structure.totalWage)}</span>
+          <span className="text-sm font-medium text-surface-300 capitalize">Base Salary</span>
+          <span className="text-lg font-bold text-white">{formatCurrency(structure.baseSalary)}</span>
         </div>
         
         <table className="w-full text-sm">
           <thead className="bg-surface-900/50">
             <tr>
-              <th className="text-left py-3 px-4 font-semibold text-surface-400 uppercase text-xs">Earnings</th>
+              <th className="text-left py-3 px-4 font-semibold text-surface-400 uppercase text-xs">Allowances</th>
               <th className="text-right py-3 px-4 font-semibold text-surface-400 uppercase text-xs">Amount</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-800">
-            {computed.components.sort((a, b) => a.order - b.order).map(comp => (
-              <tr key={comp.id}>
+            {structure.allowances.map((comp, i) => (
+              <tr key={i}>
                 <td className="py-2.5 px-4 text-surface-200">{comp.name}</td>
-                <td className="py-2.5 px-4 text-right font-mono text-white">{formatCurrency(comp.computedAmount ?? 0)}</td>
+                <td className="py-2.5 px-4 text-right font-mono text-white">{formatCurrency(comp.amount)}</td>
               </tr>
             ))}
             <tr className="bg-surface-800/30">
@@ -541,14 +514,12 @@ function SalaryReadOnlyTab({ employeeId }: { employeeId: string }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-800">
-            <tr>
-              <td className="py-2.5 px-4 text-surface-200">Provident Fund (PF)</td>
-              <td className="py-2.5 px-4 text-right font-mono text-white">{formatCurrency(computed.pfAmount ?? 0)}</td>
-            </tr>
-            <tr>
-              <td className="py-2.5 px-4 text-surface-200">Professional Tax</td>
-              <td className="py-2.5 px-4 text-right font-mono text-white">{formatCurrency(structure.professionalTax)}</td>
-            </tr>
+            {structure.deductions.map((comp, i) => (
+              <tr key={i}>
+                <td className="py-2.5 px-4 text-surface-200">{comp.name}</td>
+                <td className="py-2.5 px-4 text-right font-mono text-white">{formatCurrency(comp.amount)}</td>
+              </tr>
+            ))}
             <tr className="bg-surface-800/30">
               <td className="py-3 px-4 font-semibold text-surface-300">Total Deductions (B)</td>
               <td className="py-3 px-4 text-right font-mono font-bold text-[#ef4444]">{formatCurrency(totalDeductions)}</td>

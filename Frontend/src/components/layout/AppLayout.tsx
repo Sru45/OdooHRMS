@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getEmployeeStatus } from '../../services/attendanceService';
 import { User, LogOut, Menu, X } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { Logo } from '../ui/Logo';
@@ -48,11 +47,8 @@ export default function AppLayout() {
 
   if (!currentUser) return null;
 
-  const todayStatus = getEmployeeStatus(currentUser.employee.id);
-  const statusColor =
-    todayStatus === 'present' ? 'bg-status-green' :
-    todayStatus === 'on-leave' ? 'bg-status-yellow' :
-    'bg-status-red';
+  const todayStatus = 'present'; // mock for now
+  const statusColor = 'bg-status-green';
 
   const initials = `${currentUser.employee.firstName[0]}${currentUser.employee.lastName[0]}`.toUpperCase();
   const avatarColor = getAvatarColor(`${currentUser.employee.firstName} ${currentUser.employee.lastName}`);

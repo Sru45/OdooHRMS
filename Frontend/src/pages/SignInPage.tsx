@@ -15,7 +15,7 @@ export default function SignInPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  function loginAs(role: 'employee' | 'admin') {
+  async function loginAs(role: 'employee' | 'admin') {
     const user = role === 'admin'
       ? employees.find(e => e.role === 'admin')
       : employees.find(e => e.role === 'employee');
@@ -25,8 +25,15 @@ export default function SignInPage() {
       return;
     }
 
-    login(user.email, 'password123');
-    navigate('/dashboard');
+    setIsLoading(true);
+    const result = await login(user.email, 'password123');
+    setIsLoading(false);
+    
+    if (result.success) {
+      navigate('/dashboard');
+    } else {
+      setError('Database is empty. Please run the Supabase setup script!');
+    }
   }
 
   const handleSignIn = async (e: React.FormEvent) => {

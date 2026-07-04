@@ -7,7 +7,14 @@ export async function getEmployees(): Promise<Employee[]> {
     console.error('Error fetching employees:', error);
     return [];
   }
-  return data as Employee[];
+  return data.map((row: any) => {
+    const nameParts = (row.name || '').split(' ');
+    return {
+      ...row,
+      firstName: nameParts[0] || 'Unknown',
+      lastName: nameParts.slice(1).join(' ') || ''
+    };
+  }) as Employee[];
 }
 
 export async function getEmployee(id: string): Promise<Employee | undefined> {
@@ -16,7 +23,12 @@ export async function getEmployee(id: string): Promise<Employee | undefined> {
     console.error('Error fetching employee:', error);
     return undefined;
   }
-  return data as Employee;
+  const nameParts = (data.name || '').split(' ');
+  return {
+    ...data,
+    firstName: nameParts[0] || 'Unknown',
+    lastName: nameParts.slice(1).join(' ') || ''
+  } as Employee;
 }
 
 export async function createEmployee(
@@ -31,12 +43,26 @@ export async function createEmployee(
 }
 
 export async function updateEmployee(id: string, updates: Partial<Employee>): Promise<Employee | null> {
-  const { data, error } = await supabase.from('employees').update(updates).eq('id', id).select().single();
+  const payload: any = { ...updates };
+
+  if (payload.firstName !== undefined || payload.lastName !== undefined) {
+    const currentEmp = await getEmployee(id);
+    const fName = payload.firstName !== undefined ? payload.firstName : currentEmp?.firstName;
+    const lName = payload.lastName !== undefined ? payload.lastName : currentEmp?.lastName;
+    payload.name = `${fName} ${lName}`.trim();
+  }
+  
+  delete payload.firstName;
+  delete payload.lastName;
+
+  const { data, error } = await supabase.from('employees').update(payload).eq('id', id).select().single();
   if (error) {
     console.error('Error updating employee:', error);
     return null;
   }
-  return data as Employee;
+  
+  // Refetch to get the properly mapped firstName and lastName
+  return getEmployee(id);
 }
 
 export async function deleteEmployee(id: string): Promise<boolean> {

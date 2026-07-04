@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getEmployees } from '../services/employeeService';
 import { getAttendanceRecords, checkIn, checkOut } from '../services/attendanceService';
-import { getLeaveRequests } from '../services/leaveService';
 import { seedSupabase } from '../scripts/seedSupabase';
 import { formatDate } from '../utils/formatters';
 import type { Employee, EmployeeStatusDot } from '../types';
@@ -231,9 +230,8 @@ function AdminDashboard() {
 function CheckInOutPanel() {
   const { currentUser } = useAuth();
   const [now, setNow] = useState(new Date());
-  const [checkedIn, setCheckedIn] = useState(() => getEmployeeStatus(currentUser!.employee.id) === 'present');
+  const [checkedIn, setCheckedIn] = useState(false); // mock for now
   const [checkedOut, setCheckedOut] = useState(false); // mock
-
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);

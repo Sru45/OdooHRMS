@@ -21,8 +21,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
-    const stored = localStorage.getItem('hrms_current_user');
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = localStorage.getItem('hrms_current_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      localStorage.removeItem('hrms_current_user');
+      return null;
+    }
   });
 
   const login = useCallback(async (loginIdOrEmail: string, password: string) => {

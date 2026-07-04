@@ -74,12 +74,12 @@ export async function seedSupabase() {
     // 6. Salaries
     console.log('Seeding salaries...');
     const { error: salError } = await supabase.from('salaries').upsert(salaryStructures.map(s => ({
-      id: s.id, // Ensure we map to the primary key
+      id: s.id || `sal-${s.employeeId}`,
       employeeId: s.employeeId,
       baseSalary: s.baseSalary,
-      allowances: s.allowances,
-      deductions: s.deductions,
-      effectiveDate: s.effectiveDate
+      allowances: s.allowances || [],
+      deductions: s.deductions || [],
+      effectiveDate: s.effectiveDate || new Date().toISOString()
     })));
     if (salError) throw salError;
 

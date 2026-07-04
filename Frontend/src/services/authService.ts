@@ -12,7 +12,13 @@ export async function signIn(loginIdOrEmail: string, password: string): Promise<
     return { success: false, error: 'No account found with this Login ID or email.' };
   }
 
-  const employee = employees[0];
+  const rawEmp = employees[0];
+  const nameParts = (rawEmp.name || '').split(' ');
+  const employee = {
+    ...rawEmp,
+    firstName: nameParts[0] || 'Unknown',
+    lastName: nameParts.slice(1).join(' ') || ''
+  } as Employee;
 
   // In a real app, passwords would be hashed.
   // For hackathon mock, we check raw or assume it works for the demo if it matches or is any string > 5
@@ -51,8 +57,13 @@ export async function signUp(data: {
     return { success: false, error: 'An account with this email already exists.' };
   }
 
+  // Generate simple IDs (in a real app, use UUIDs)
+  const companyId = 'company-' + Date.now();
+  const empId = 'emp-' + Date.now();
+
   // Insert company first
   const { data: company, error: companyError } = await supabase.from('companies').insert([{
+    id: companyId,
     name: data.companyName,
     subscriptionPlan: 'Enterprise',
     employeeCount: 1,
@@ -60,11 +71,13 @@ export async function signUp(data: {
   }]).select().single();
 
   if (companyError || !company) {
+    console.error('Company creation error:', companyError);
     return { success: false, error: 'Failed to create company.' };
   }
 
   // Insert admin employee
   const { data: employee, error: empError } = await supabase.from('employees').insert([{
+    id: empId,
     name: `${data.firstName} ${data.lastName}`,
     email: data.email,
     role: 'admin',
@@ -75,6 +88,7 @@ export async function signUp(data: {
   }]).select().single();
 
   if (empError || !employee) {
+    console.error('Employee creation error:', empError);
     return { success: false, error: 'Failed to create admin user.' };
   }
 
@@ -86,8 +100,15 @@ export async function signUp(data: {
 }
 
 export async function getCurrentUser(userId: string): Promise<AuthUser | null> {
-  const { data: employee } = await supabase.from('employees').select('*').eq('id', userId).single();
-  if (!employee) return null;
+  const { data: rawEmp } = await supabase.from('employees').select('*').eq('id', userId).single();
+  if (!rawEmp) return null;
+
+  const nameParts = (rawEmp.name || '').split(' ');
+  const employee = {
+    ...rawEmp,
+    firstName: nameParts[0] || 'Unknown',
+    lastName: nameParts.slice(1).join(' ') || ''
+  } as Employee;
 
   const { data: companies } = await supabase.from('companies').select('*').limit(1);
   const company = companies?.[0];

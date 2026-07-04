@@ -1,16 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  getAttendanceByDate,
-  getAttendanceByEmployeeAndMonth,
-  getMonthSummary,
+  getAttendanceRecords,
+  getAttendanceByEmployee,
   checkIn,
 } from '../services/attendanceService';
 import { getEmployees } from '../services/employeeService';
+import type { AttendanceRecord, Employee } from '../types';
 import { Search, ChevronLeft, ChevronRight, Clock, CalendarIcon, CheckCircle2, ArrowRight, CalendarOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StatusBadge } from '../components/ui/StatusBadge';
-
 
 export default function AttendancePage() {
   const { isAdmin } = useAuth();
@@ -21,11 +20,23 @@ function AdminAttendanceView() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  
+  useEffect(() => {
+    async function load() {
+      const emps = await getEmployees();
+      setAllEmployees(emps);
+      const allRecords = await getAttendanceRecords();
+      setRecords(allRecords);
+    }
+    load();
+  }, []);
 
-  const allEmployees = getEmployees();
-  const records = useMemo(() => {
+  const filteredRecords = useMemo(() => {
     if (viewMode === 'day') {
-      return getAttendanceByDate(selectedDate);
+      return records.filter(r => r.date === selectedDate);
     }
     const start = new Date(selectedDate);
     const dates: string[] = [];
@@ -34,8 +45,8 @@ function AdminAttendanceView() {
       d.setDate(d.getDate() + i);
       dates.push(d.toISOString().split('T')[0]);
     }
-    return dates.flatMap(date => getAttendanceByDate(date));
-  }, [selectedDate, viewMode]);
+    return records.filter(r => dates.includes(r.date));
+  }, [records, selectedDate, viewMode]);
 
   const tableData = useMemo(() => {
     return allEmployees
@@ -47,10 +58,10 @@ function AdminAttendanceView() {
                emp.department.toLowerCase().includes(q);
       })
       .map(emp => {
-        const record = records.find(r => r.employeeId === emp.id && r.date === selectedDate);
+        const record = filteredRecords.find(r => r.employeeId === emp.id && r.date === selectedDate);
         return { employee: emp, record };
       });
-  }, [allEmployees, records, selectedDate, search]);
+  }, [allEmployees, filteredRecords, selectedDate, search]);
 
   const navigateDate = (dir: number) => {
     const d = new Date(selectedDate);
@@ -193,18 +204,39 @@ function EmployeeAttendanceView() {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
-  const [, setForceUpdate] = useState(0);
+  const [forceUpdate, setForceUpdate] = useState(0);
 
-  const summary = getMonthSummary(employeeId, year, month);
-  const records = getAttendanceByEmployeeAndMonth(employeeId, year, month);
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
 
-  // Check if today needs a check-in
+  useEffect(() => {
+    async function load() {
+      const allRecords = await getAttendanceByEmployee(employeeId);
+      const filtered = allRecords.filter(r => {
+        const d = new Date(r.date);
+        return d.getFullYear() === year && (d.getMonth() + 1) === month;
+      });
+      setRecords(filtered);
+    }
+    load();
+  }, [employeeId, month, year, forceUpdate]);
+
+  const summary = useMemo(() => {
+    let present = 0;
+    let leaves = 0;
+    records.forEach(r => {
+      if (r.status === 'present' || r.status === 'half-day') present++;
+      if (r.status === 'leave') leaves++;
+    });
+    const totalWorkingDays = 22; // simplified mock
+    return { daysPresent: present, leavesCount: leaves, totalWorkingDays };
+  }, [records]);
+
   const todayStr = new Date().toISOString().split('T')[0];
   const todayRecord = records.find(r => r.date === todayStr);
   const needsCheckIn = (!todayRecord || todayRecord.status === 'absent') && year === now.getFullYear() && month === now.getMonth() + 1;
 
-  const handleCheckIn = () => {
-    checkIn(employeeId);
+  const handleCheckIn = async () => {
+    await checkIn(employeeId);
     toast.success('Checked in successfully');
     setForceUpdate(n => n + 1);
   };
@@ -357,10 +389,17 @@ function SummaryCard({ label, value, icon }: { label: string; value: number | st
 }
 
 function formatTime(isoString: string): string {
+  if (!isoString) return '-';
   try {
+    if (isoString.includes(':') && !isoString.includes('T')) {
+      const [h, m] = isoString.split(':');
+      const d = new Date();
+      d.setHours(parseInt(h), parseInt(m), 0);
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
     return new Date(isoString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   } catch {
-    return '-';
+    return isoString;
   }
 }
 
