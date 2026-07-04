@@ -1,95 +1,49 @@
-/**
- * Employee Service — Mock CRUD operations for employees
- */
-
-import { employees, companies } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 import type { Employee } from '../types';
-import { generateLoginId, generateTempPassword } from '../utils/loginIdGenerator';
 
-export function getEmployees(): Employee[] {
-  return [...employees];
+export async function getEmployees(): Promise<Employee[]> {
+  const { data, error } = await supabase.from('employees').select('*');
+  if (error) {
+    console.error('Error fetching employees:', error);
+    return [];
+  }
+  return data as Employee[];
 }
 
-export function getEmployee(id: string): Employee | undefined {
-  return employees.find(e => e.id === id);
+export async function getEmployee(id: string): Promise<Employee | undefined> {
+  const { data, error } = await supabase.from('employees').select('*').eq('id', id).single();
+  if (error) {
+    console.error('Error fetching employee:', error);
+    return undefined;
+  }
+  return data as Employee;
 }
 
-export function getEmployeesByDepartment(department: string): Employee[] {
-  return employees.filter(e => e.department === department);
+export async function createEmployee(
+  employeeData: Omit<Employee, 'id'>
+): Promise<{ success: boolean; employee?: Employee; tempPassword?: string; error?: string }> {
+  const { data, error } = await supabase.from('employees').insert([employeeData]).select().single();
+  if (error) {
+    console.error('Error creating employee:', error);
+    return { success: false, error: 'Failed to create employee' };
+  }
+  return { success: true, employee: data as Employee, tempPassword: 'password123' };
 }
 
-export function searchEmployees(query: string): Employee[] {
-  const q = query.toLowerCase();
-  return employees.filter(e =>
-    e.firstName.toLowerCase().includes(q) ||
-    e.lastName.toLowerCase().includes(q) ||
-    e.email.toLowerCase().includes(q) ||
-    e.department.toLowerCase().includes(q) ||
-    e.title.toLowerCase().includes(q) ||
-    e.loginId.toLowerCase().includes(q)
-  );
+export async function updateEmployee(id: string, updates: Partial<Employee>): Promise<Employee | null> {
+  const { data, error } = await supabase.from('employees').update(updates).eq('id', id).select().single();
+  if (error) {
+    console.error('Error updating employee:', error);
+    return null;
+  }
+  return data as Employee;
 }
 
-export function updateEmployee(id: string, updates: Partial<Employee>): Employee | undefined {
-  const idx = employees.findIndex(e => e.id === id);
-  if (idx === -1) return undefined;
-
-  employees[idx] = { ...employees[idx], ...updates };
-  return employees[idx];
-}
-
-export function createEmployee(data: {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  department: string;
-  title: string;
-  companyId: string;
-  dateOfJoining: string;
-}): { employee: Employee; loginId: string; tempPassword: string } {
-  const company = companies.find(c => c.id === data.companyId);
-  const companyCode = company?.code ?? '0E';
-  const year = new Date(data.dateOfJoining).getFullYear();
-
-  const loginId = generateLoginId(companyCode, data.firstName, data.lastName, year);
-  const tempPassword = generateTempPassword();
-
-  const newEmployee: Employee = {
-    id: `emp-${String(employees.length + 1).padStart(3, '0')}`,
-    loginId,
-    role: 'employee',
-    companyId: data.companyId,
-    firstName: data.firstName,
-    lastName: data.lastName,
-    email: data.email,
-    phone: data.phone,
-    profilePictureUrl: undefined,
-    aboutMe: '',
-    skills: [],
-    certifications: [],
-    interests: [],
-    department: data.department,
-    title: data.title,
-    managerId: undefined,
-    dateOfBirth: '',
-    currentAddress: '',
-    permanentAddress: '',
-    personalEmail: '',
-    gender: 'other',
-    maritalStatus: 'single',
-    panNumber: '',
-    aadharNumber: '',
-    bloodGroup: '',
-    dateOfJoining: data.dateOfJoining,
-    password: tempPassword,
-  };
-
-  employees.push(newEmployee);
-
-  return { employee: newEmployee, loginId, tempPassword };
-}
-
-export function getDepartments(): string[] {
-  return [...new Set(employees.map(e => e.department))];
+export async function deleteEmployee(id: string): Promise<boolean> {
+  const { error } = await supabase.from('employees').delete().eq('id', id);
+  if (error) {
+    console.error('Error deleting employee:', error);
+    return false;
+  }
+  return true;
 }

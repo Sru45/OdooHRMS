@@ -1,134 +1,56 @@
-/**
- * Leave Service — Mock leave management
- */
+import { supabase } from '../lib/supabase';
+import type { LeaveRequest, LeaveType, LeaveAllocation, LeaveBalance } from '../types';
 
-import { leaveRequests, leaveAllocations, activities } from '../data/mockData';
-import type { LeaveRequest, LeaveAllocation, LeaveType, LeaveStatus, ActivityItem } from '../types';
-
-export function getLeaveRequests(employeeId?: string): LeaveRequest[] {
-  const requests = employeeId
-    ? leaveRequests.filter(r => r.employeeId === employeeId)
-    : [...leaveRequests];
-  return requests.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+export async function getLeaveAllocations(employeeId: string, year: number): Promise<LeaveAllocation[]> {
+  const { data, error } = await supabase.from('leave_allocations')
+    .select('*')
+    .eq('employeeId', employeeId)
+    .eq('year', year);
+  if (error) return [];
+  return data as LeaveAllocation[];
 }
 
-export function getLeaveRequestsByStatus(status: LeaveStatus, employeeId?: string): LeaveRequest[] {
-  return getLeaveRequests(employeeId).filter(r => r.status === status);
-}
-
-export function getPendingLeaveRequests(): LeaveRequest[] {
-  return leaveRequests.filter(r => r.status === 'pending')
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
-
-export function submitLeaveRequest(request: Omit<LeaveRequest, 'id' | 'status' | 'createdAt'>): LeaveRequest {
-  const newRequest: LeaveRequest = {
-    ...request,
-    id: `lr-${String(leaveRequests.length + 1).padStart(3, '0')}`,
-    status: 'pending',
-    createdAt: new Date().toISOString(),
-  };
-
-  leaveRequests.push(newRequest);
-
-  // Add activity
-  const activity: ActivityItem = {
-    id: `act-${activities.length + 1}`,
-    employeeId: request.employeeId,
-    message: `You submitted a leave request for ${request.startDate} to ${request.endDate}.`,
-    timestamp: new Date().toISOString(),
-    type: 'leave-submitted',
-  };
-  activities.push(activity);
-
-  return newRequest;
-}
-
-export function approveLeave(requestId: string, adminComment?: string): LeaveRequest | null {
-  const request = leaveRequests.find(r => r.id === requestId);
-  if (!request) return null;
-
-  request.status = 'approved';
-  request.adminComment = adminComment;
-
-  // Update allocation used days
-  const allocation = leaveAllocations.find(
-    a => a.employeeId === request.employeeId && a.leaveType === request.leaveType
-  );
-  if (allocation) {
-    allocation.daysUsed += request.daysRequested;
+export async function getLeaveBalance(employeeId: string, leaveType: LeaveType, year: number): Promise<LeaveBalance> {
+  const { data, error } = await supabase.from('leave_allocations')
+    .select('*')
+    .eq('employeeId', employeeId)
+    .eq('year', year)
+    .eq('leaveType', leaveType)
+    .single();
+    
+  if (error || !data) {
+    return { allocated: 0, used: 0, available: 0 };
   }
-
-  // Add activity for the employee
-  const activity: ActivityItem = {
-    id: `act-${activities.length + 1}`,
-    employeeId: request.employeeId,
-    message: `Your leave request for ${request.startDate} to ${request.endDate} was approved.`,
-    timestamp: new Date().toISOString(),
-    type: 'leave-approved',
-  };
-  activities.push(activity);
-
-  return request;
-}
-
-export function rejectLeave(requestId: string, adminComment?: string): LeaveRequest | null {
-  const request = leaveRequests.find(r => r.id === requestId);
-  if (!request) return null;
-
-  request.status = 'rejected';
-  request.adminComment = adminComment;
-
-  // Add activity for the employee
-  const activity: ActivityItem = {
-    id: `act-${activities.length + 1}`,
-    employeeId: request.employeeId,
-    message: `Your leave request for ${request.startDate} to ${request.endDate} was rejected.`,
-    timestamp: new Date().toISOString(),
-    type: 'leave-rejected',
-  };
-  activities.push(activity);
-
-  return request;
-}
-
-export function getLeaveAllocations(employeeId?: string, year?: number): LeaveAllocation[] {
-  let allocs = [...leaveAllocations];
-  if (employeeId) allocs = allocs.filter(a => a.employeeId === employeeId);
-  if (year) allocs = allocs.filter(a => a.year === year);
-  return allocs;
-}
-
-export function updateLeaveAllocation(
-  allocationId: string,
-  updates: { daysAllocated?: number; daysUsed?: number }
-): LeaveAllocation | null {
-  const allocation = leaveAllocations.find(a => a.id === allocationId);
-  if (!allocation) return null;
-
-  if (updates.daysAllocated !== undefined) allocation.daysAllocated = updates.daysAllocated;
-  if (updates.daysUsed !== undefined) allocation.daysUsed = updates.daysUsed;
-
-  return allocation;
-}
-
-export function getLeaveBalance(employeeId: string, leaveType: LeaveType): { allocated: number; used: number; available: number } {
-  const allocation = leaveAllocations.find(
-    a => a.employeeId === employeeId && a.leaveType === leaveType && a.year === new Date().getFullYear()
-  );
-
-  if (!allocation) return { allocated: 0, used: 0, available: 0 };
-
+  
   return {
-    allocated: allocation.daysAllocated,
-    used: allocation.daysUsed,
-    available: allocation.daysAllocated - allocation.daysUsed,
+    allocated: data.daysAllocated,
+    used: data.daysUsed,
+    available: data.daysAllocated - data.daysUsed
   };
 }
 
-export function getActivities(employeeId?: string): ActivityItem[] {
-  const items = employeeId
-    ? activities.filter(a => a.employeeId === employeeId)
-    : [...activities];
-  return items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+export async function getLeaveRequests(employeeId?: string): Promise<LeaveRequest[]> {
+  let query = supabase.from('leave_requests').select('*');
+  if (employeeId) {
+    query = query.eq('employeeId', employeeId);
+  }
+  const { data, error } = await query;
+  if (error) return [];
+  return data as LeaveRequest[];
+}
+
+export async function createLeaveRequest(request: Omit<LeaveRequest, 'id' | 'status'>): Promise<LeaveRequest | null> {
+  const { data, error } = await supabase.from('leave_requests')
+    .insert([{ ...request, status: 'pending' }])
+    .select().single();
+  if (error) return null;
+  return data as LeaveRequest;
+}
+
+export async function updateLeaveRequestStatus(requestId: string, status: 'approved' | 'rejected', approvedBy?: string): Promise<LeaveRequest | null> {
+  const { data, error } = await supabase.from('leave_requests')
+    .update({ status, approvedBy })
+    .eq('id', requestId).select().single();
+  if (error) return null;
+  return data as LeaveRequest;
 }

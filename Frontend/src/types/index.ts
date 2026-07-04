@@ -90,15 +90,12 @@ export interface SalaryComponent {
 }
 
 export interface SalaryStructure {
+  id: string;
   employeeId: string;
-  wageType: WageType;
-  totalWage: number;
-  components: SalaryComponent[];
-  pfContributionRate: number; // percentage, e.g. 12
-  pfAmount?: number; // computed
-  professionalTax: number; // flat amount
-  workingDaysPerWeek: number;
-  standardWorkHoursPerDay: number;
+  baseSalary: number;
+  allowances: { name: string; amount: number }[];
+  deductions: { name: string; amount: number }[];
+  effectiveDate: string;
 }
 
 export interface LeaveRequest {
@@ -123,6 +120,12 @@ export interface LeaveAllocation {
   daysAllocated: number;
   daysUsed: number;
   year: number;
+}
+
+export interface LeaveBalance {
+  allocated: number;
+  used: number;
+  available: number;
 }
 
 export interface ActivityItem {

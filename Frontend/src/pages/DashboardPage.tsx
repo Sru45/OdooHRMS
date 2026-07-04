@@ -1,20 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getEmployees, searchEmployees } from '../services/employeeService';
-import { getEmployeeStatus, checkIn, checkOut, getAllEmployeesTodayAttendance } from '../services/attendanceService';
-import { getActivities } from '../services/leaveService';
+import { getEmployees } from '../services/employeeService';
+import { getAttendanceRecords, checkIn, checkOut } from '../services/attendanceService';
+import { getLeaveRequests } from '../services/leaveService';
+import { seedSupabase } from '../scripts/seedSupabase';
 import { formatDate } from '../utils/formatters';
 import type { Employee, EmployeeStatusDot } from '../types';
 import { Users, UserCheck, CalendarOff, UserX, Clock, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-function getStatusDot(employeeId: string): EmployeeStatusDot {
-  const status = getEmployeeStatus(employeeId);
-  if (status === 'present') return 'green';
-  if (status === 'on-leave') return 'yellow';
-  return 'red';
-}
 
 const statusColorMap: Record<EmployeeStatusDot, string> = {
   green: 'bg-[#22c55e]',
@@ -47,8 +41,18 @@ export default function DashboardPage() {
 function EmployeeDashboard() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const employees = getEmployees();
-  const myActivities = getActivities(currentUser!.employee.id).slice(0, 5);
+  
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [myActivities, setMyActivities] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      const emps = await getEmployees();
+      setEmployees(emps);
+      // For mock activities, just leave empty or fetch leave requests
+    }
+    load();
+  }, []);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -103,17 +107,46 @@ function EmployeeDashboard() {
 function AdminDashboard() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-
-  const allEmployees = useMemo(() =>
-    search ? searchEmployees(search) : getEmployees(),
-    [search]
-  );
   
-  const todayAttendance = getAllEmployeesTodayAttendance();
-  const presentCount = todayAttendance.filter(a => a.record?.status === 'present').length;
-  const onLeaveCount = todayAttendance.filter(a => a.record?.status === 'leave').length;
-  // Absent = total employees - present - on leave (roughly)
-  const absentCount = getEmployees().length - presentCount - onLeaveCount;
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      const emps = await getEmployees();
+      const atts = await getAttendanceRecords();
+      setEmployees(emps);
+      setAttendance(atts);
+    }
+    load();
+  }, []);
+
+  const handleSeed = async () => {
+    setIsSeeding(true);
+    const result = await seedSupabase();
+    setIsSeeding(false);
+    if (result.success) {
+      toast.success('Database seeded successfully!');
+      window.location.reload();
+    } else {
+      toast.error('Failed to seed: ' + result.error);
+    }
+  };
+
+  const allEmployees = useMemo(() => {
+    if (!search) return employees;
+    const q = search.toLowerCase();
+    return employees.filter(e => 
+      e.firstName.toLowerCase().includes(q) || e.lastName.toLowerCase().includes(q)
+    );
+  }, [search, employees]);
+  
+  const today = new Date().toISOString().split('T')[0];
+  const todayAttendance = attendance.filter(a => a.date === today);
+  const presentCount = todayAttendance.filter(a => a.status === 'present').length;
+  const onLeaveCount = todayAttendance.filter(a => a.status === 'leave').length;
+  const absentCount = employees.length - presentCount - onLeaveCount;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -151,7 +184,16 @@ function AdminDashboard() {
       {/* Search + Employee List */}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <h2 className="text-xl font-semibold text-white">Employees Directory</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold text-white">Employees Directory</h2>
+            <button
+              onClick={handleSeed}
+              disabled={isSeeding}
+              className="px-3 py-1.5 bg-accent-600 hover:bg-accent-700 text-white text-xs font-medium rounded transition-colors disabled:opacity-50"
+            >
+              {isSeeding ? 'Seeding...' : 'Seed DB'}
+            </button>
+          </div>
           <div className="relative w-full sm:w-72">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
             <input
@@ -249,7 +291,7 @@ function CheckInOutPanel() {
 }
 
 function EmployeeCard({ employee, onClick, style }: { employee: Employee; onClick: () => void; style?: React.CSSProperties }) {
-  const statusDot = getStatusDot(employee.id);
+  const statusDot: EmployeeStatusDot = 'green'; // Mocked for simplicity in directory
   const initials = `${employee.firstName[0]}${employee.lastName[0]}`.toUpperCase();
   const avatarColor = getAvatarColor(`${employee.firstName} ${employee.lastName}`);
 

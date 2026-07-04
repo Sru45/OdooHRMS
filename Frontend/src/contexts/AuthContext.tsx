@@ -12,9 +12,9 @@ interface AuthContextType {
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (loginIdOrEmail: string, password: string) => { success: boolean; error?: string };
+  login: (loginIdOrEmail: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  switchUser: (userId: string) => void;
+  switchUser: (userId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,8 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return stored ? JSON.parse(stored) : null;
   });
 
-  const login = useCallback((loginIdOrEmail: string, password: string) => {
-    const result = authSignIn(loginIdOrEmail, password);
+  const login = useCallback(async (loginIdOrEmail: string, password: string) => {
+    const result = await authSignIn(loginIdOrEmail, password);
     if (result.success && result.user) {
       setCurrentUser(result.user);
       localStorage.setItem('hrms_current_user', JSON.stringify(result.user));
@@ -40,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('hrms_current_user');
   }, []);
 
-  const switchUser = useCallback((userId: string) => {
-    const authUser = getCurrentUser(userId);
+  const switchUser = useCallback(async (userId: string) => {
+    const authUser = await getCurrentUser(userId);
     if (authUser) {
       setCurrentUser(authUser);
       localStorage.setItem('hrms_current_user', JSON.stringify(authUser));

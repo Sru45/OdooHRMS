@@ -7,12 +7,12 @@ import toast from 'react-hot-toast';
 import { Logo } from '../components/ui/Logo';
 
 export default function SignInPage() {
-  const [email, setEmail] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { switchUser } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   function loginAs(role: 'employee' | 'admin') {
@@ -25,46 +25,24 @@ export default function SignInPage() {
       return;
     }
 
-    switchUser(user.id);
+    login(user.email, 'password123');
     navigate('/dashboard');
   }
 
-  async function handleSignIn(e: React.FormEvent) {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (!email || !password) {
-      setError('Please fill in all fields.');
-      return;
-    }
-
     setIsLoading(true);
-
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 600));
-
-    // Find user in mock data by email (case-insensitive)
-    const user = employees.find(
-      e => e.email.toLowerCase() === email.toLowerCase() || e.loginId.toLowerCase() === email.toLowerCase()
-    );
-
-    if (!user) {
-      setError('No account found with this email.');
-      setIsLoading(false);
-      return;
+    
+    const result = await login(loginId, password);
+    
+    setIsLoading(false);
+    if (result.success) {
+      navigate('/dashboard');
+    } else {
+      setError(result.error || 'Failed to sign in');
     }
-
-    // Password check: for mock, any password >= 6 chars for known email
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      setIsLoading(false);
-      return;
-    }
-
-    switchUser(user.id);
-    toast.success('Signed in successfully');
-    navigate('/dashboard');
-  }
+  };
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] flex flex-col items-center justify-center p-4">
@@ -87,8 +65,8 @@ export default function SignInPage() {
             </label>
             <input
               type="text"
-              value={email}
-              onChange={e => { setEmail(e.target.value); setError(''); }}
+              value={loginId}
+              onChange={e => { setLoginId(e.target.value); setError(''); }}
               disabled={isLoading}
               className="w-full h-10 bg-surface-900 border border-white/15 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 disabled:opacity-50 transition-colors"
               placeholder="e.g. employee@novatech.com"

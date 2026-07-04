@@ -1,26 +1,50 @@
-/**
- * Employees Page — Directory/list view of all employees
- * Searchable, filterable by department
- */
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getEmployees, searchEmployees, getDepartments } from '../services/employeeService';
-import { getEmployeeStatus } from '../services/attendanceService';
+import { getEmployees } from '../services/employeeService';
+import type { Employee } from '../types';
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
-  const departments = getDepartments();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const employees = useMemo(() => {
-    let result = search ? searchEmployees(search) : getEmployees();
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      const data = await getEmployees();
+      setEmployees(data);
+      setIsLoading(false);
+    }
+    loadData();
+  }, []);
+
+  const departments = useMemo(() => {
+    const deps = new Set(employees.map(e => e.department));
+    return Array.from(deps).filter(Boolean);
+  }, [employees]);
+
+  const filteredEmployees = useMemo(() => {
+    let result = employees;
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(e => 
+        e.firstName.toLowerCase().includes(q) ||
+        e.lastName.toLowerCase().includes(q) ||
+        e.email.toLowerCase().includes(q)
+      );
+    }
     if (departmentFilter) {
       result = result.filter(e => e.department === departmentFilter);
     }
     return result;
-  }, [search, departmentFilter]);
+  }, [search, departmentFilter, employees]);
+
+  if (isLoading) {
+    return <div className="text-white text-center py-10 animate-pulse">Loading employees...</div>;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -69,9 +93,9 @@ export default function EmployeesPage() {
             </tr>
           </thead>
           <tbody>
-            {employees.map(emp => {
-              const status = getEmployeeStatus(emp.id);
-              const statusColor = status === 'present' ? 'bg-status-green' : status === 'on-leave' ? 'bg-status-yellow' : 'bg-status-red';
+            {filteredEmployees.map(emp => {
+              // Mock status for now since attendance is not loaded here
+              const statusColor = 'bg-status-green';
 
               return (
                 <tr
@@ -102,7 +126,7 @@ export default function EmployeesPage() {
                 </tr>
               );
             })}
-            {employees.length === 0 && (
+            {filteredEmployees.length === 0 && (
               <tr>
                 <td colSpan={6} className="py-12 text-center text-surface-500">
                   No employees found.

@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { generateLoginId } from '../utils/loginIdGenerator';
-import { companies, employees } from '../data/mockData';
 import { useAuth } from '../contexts/AuthContext';
-import type { Employee, Company } from '../types';
+import { signUp } from '../services/authService';
 import { Logo } from '../components/ui/Logo';
 
 export default function SignUpPage() {
   const navigate = useNavigate();
-  const { switchUser } = useAuth();
+  const { login } = useAuth();
   
   const [formData, setFormData] = useState({
     companyName: '',
@@ -53,53 +51,22 @@ export default function SignUpPage() {
     
     setIsLoading(true);
 
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 600));
-
-    // Create a new mock company
-    const newCompany: Company = {
-      id: `comp-${companies.length + 1}`,
-      code: formData.companyName.substring(0, 2).toUpperCase() + 'E',
-      name: formData.companyName,
-    };
-    companies.push(newCompany);
-
-    // Generate Login ID for the new Admin
-    const year = new Date().getFullYear();
-    const loginId = generateLoginId(newCompany.code, formData.firstName, formData.lastName, year);
-
-    // Create the Admin user
-    const newAdmin: Employee = {
-      id: `emp-${String(employees.length + 1).padStart(3, '0')}`,
-      loginId,
-      role: 'admin',
-      companyId: newCompany.id,
+    const result = await signUp({
+      companyName: formData.companyName,
       firstName: formData.firstName,
       lastName: formData.lastName,
       email: formData.email,
       phone: formData.phone,
-      department: 'Management',
-      title: 'Administrator',
-      dateOfBirth: '',
-      currentAddress: '',
-      permanentAddress: '',
-      gender: 'other',
-      maritalStatus: 'single',
-      panNumber: '',
-      aadharNumber: '',
-      bloodGroup: '',
-      dateOfJoining: new Date().toISOString(),
-      password: formData.password,
-      skills: [],
-      certifications: [],
-      interests: []
-    };
+      password: formData.password
+    });
 
-    employees.push(newAdmin);
-
-    // Log in immediately
-    switchUser(newAdmin.id);
-    navigate('/dashboard');
+    if (result.success && result.loginId) {
+      await login(result.loginId, formData.password);
+      navigate('/dashboard');
+    } else {
+      setErrors({ email: result.error || 'Failed to create account.' });
+      setIsLoading(false);
+    }
   };
 
   return (
