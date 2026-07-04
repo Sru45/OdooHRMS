@@ -175,7 +175,8 @@ function AddEmployeeModal({ onClose, onSuccess }: { onClose: () => void, onSucce
     email: '',
     department: 'Engineering',
     title: '',
-    role: 'employee' as 'employee' | 'admin'
+    role: 'employee' as 'employee' | 'admin',
+    password: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -183,7 +184,13 @@ function AddEmployeeModal({ onClose, onSuccess }: { onClose: () => void, onSucce
     e.preventDefault();
     setIsSubmitting(true);
     
-    const newEmpData: Omit<Employee, 'id'> = {
+    if (formData.password.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      setIsSubmitting(false);
+      return;
+    }
+    
+    const newEmpData: any = {
       ...formData,
       status: 'active',
       joinDate: new Date().toISOString().split('T')[0],
@@ -194,7 +201,7 @@ function AddEmployeeModal({ onClose, onSuccess }: { onClose: () => void, onSucce
     setIsSubmitting(false);
 
     if (res.success && res.employee) {
-      toast.success(`Employee added! Default password: ${res.tempPassword}`, { duration: 5000 });
+      toast.success(`Employee added successfully!`, { duration: 5000 });
       onSuccess(res.employee);
       onClose();
     } else {
@@ -247,12 +254,18 @@ function AddEmployeeModal({ onClose, onSuccess }: { onClose: () => void, onSucce
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-surface-300 mb-1.5">Role</label>
-            <select required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as any})} className="input-base w-full">
-              <option value="employee">Employee</option>
-              <option value="admin">Administrator</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-surface-300 mb-1.5">Role</label>
+              <select required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as any})} className="input-base w-full">
+                <option value="employee">Employee</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-surface-300 mb-1.5">Initial Password</label>
+              <input required type="text" minLength={6} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="input-base w-full" placeholder="e.g. secure123" />
+            </div>
           </div>
 
           <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-surface-700">

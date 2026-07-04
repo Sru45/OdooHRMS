@@ -65,9 +65,9 @@ export default function SignInPage() {
               <label className="text-[13px] font-medium text-surface-400">
                 Password
               </label>
-              <a href="#" className="text-[13px] text-accent-400 hover:text-accent-300 font-medium transition-colors">
+              <Link to="/forgot-password" className="text-[13px] text-accent-400 hover:text-accent-300 font-medium transition-colors">
                 Forgot password?
-              </a>
+              </Link>
             </div>
             <div className="relative">
               <input

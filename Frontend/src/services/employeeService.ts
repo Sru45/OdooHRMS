@@ -37,6 +37,8 @@ export async function createEmployee(
   
   const payload: any = { ...employeeData };
   payload.name = `${payload.firstName || ''} ${payload.lastName || ''}`.trim();
+  payload.id = 'emp-' + Date.now();
+  payload.companyId = '1';
   delete payload.firstName;
   delete payload.lastName;
 
@@ -54,7 +56,7 @@ export async function createEmployee(
     lastName: nameParts.slice(1).join(' ') || ''
   } as Employee;
 
-  return { success: true, employee: returnedEmployee, tempPassword: 'password123' };
+  return { success: true, employee: returnedEmployee, tempPassword: payload.password };
 }
 
 export async function updateEmployee(id: string, updates: Partial<Employee>): Promise<Employee | null> {

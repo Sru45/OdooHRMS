@@ -20,10 +20,16 @@ export async function signIn(loginIdOrEmail: string, password: string): Promise<
     lastName: nameParts.slice(1).join(' ') || ''
   } as Employee;
 
-  // In a real app, passwords would be hashed.
-  // For hackathon mock, we check raw or assume it works for the demo if it matches or is any string > 5
-  if (password.length < 6) {
-    return { success: false, error: 'Invalid password. Password must be at least 6 characters.' };
+  // Check password against the database (or allow fallback if missing)
+  if (rawEmp.password) {
+    if (rawEmp.password !== password) {
+      return { success: false, error: 'Invalid password. Please try again.' };
+    }
+  } else {
+    // Fallback for legacy demo users before password column was fully populated
+    if (password !== 'password123' && password.length < 6) {
+      return { success: false, error: 'Invalid password. Please try again.' };
+    }
   }
 
   // Get the first company (assuming 1 company for this demo)
@@ -84,7 +90,8 @@ export async function signUp(data: {
     department: 'Management',
     title: 'CEO',
     joinDate: new Date().toISOString().split('T')[0],
-    status: 'active'
+    status: 'active',
+    password: data.password
   }]).select().single();
 
   if (empError || !employee) {
@@ -119,4 +126,31 @@ export async function getCurrentUser(userId: string): Promise<AuthUser | null> {
     company,
     isAdmin: employee.role === 'admin',
   };
+}
+
+export async function resetPassword(email: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  // Find employee by email
+  const { data: employees, error: searchError } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('email', email);
+
+  if (searchError || !employees || employees.length === 0) {
+    return { success: false, error: 'No account found with this email.' };
+  }
+
+  const employeeId = employees[0].id;
+
+  // Update password
+  const { error: updateError } = await supabase
+    .from('employees')
+    .update({ password: newPassword })
+    .eq('id', employeeId);
+
+  if (updateError) {
+    console.error('Password reset error:', updateError);
+    return { success: false, error: 'Failed to reset password.' };
+  }
+
+  return { success: true };
 }
