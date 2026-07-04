@@ -55,6 +55,7 @@ export async function signUp(data: {
   email: string;
   phone: string;
   password: string;
+  role?: 'admin' | 'employee';
 }): Promise<{ success: boolean; employee?: Employee; loginId?: string; tempPassword?: string; error?: string }> {
   
   // Check if email exists
@@ -67,29 +68,32 @@ export async function signUp(data: {
   const companyId = 'company-' + Date.now();
   const empId = 'emp-' + Date.now();
 
-  // Insert company first
-  const { data: company, error: companyError } = await supabase.from('companies').insert([{
-    id: companyId,
-    name: data.companyName,
-    subscriptionPlan: 'Enterprise',
-    employeeCount: 1,
-    createdAt: new Date().toISOString()
-  }]).select().single();
+  // Insert company first only if admin
+  if (data.role !== 'employee') {
+    const { data: company, error: companyError } = await supabase.from('companies').insert([{
+      id: companyId,
+      name: data.companyName,
+      subscriptionPlan: 'Enterprise',
+      employeeCount: 1,
+      createdAt: new Date().toISOString()
+    }]).select().single();
 
-  if (companyError || !company) {
-    console.error('Company creation error:', companyError);
-    return { success: false, error: 'Failed to create company.' };
+    if (companyError || !company) {
+      console.error('Company creation error:', companyError);
+      return { success: false, error: 'Failed to create company.' };
+    }
   }
 
-  // Insert admin employee
+  // Insert employee
   const { data: employee, error: empError } = await supabase.from('employees').insert([{
     id: empId,
     name: `${data.firstName} ${data.lastName}`,
     email: data.email,
-    role: 'admin',
-    department: 'Management',
-    title: 'CEO',
+    role: data.role || 'admin',
+    department: data.role === 'employee' ? 'General' : 'Management',
+    title: data.role === 'employee' ? 'Employee' : 'CEO',
     joinDate: new Date().toISOString().split('T')[0],
+    dateOfJoining: new Date().toISOString().split('T')[0],
     status: 'active',
     password: data.password
   }]).select().single();

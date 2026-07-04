@@ -16,6 +16,7 @@ export default function SignUpPage() {
     phone: '',
     password: '',
     confirmPassword: '',
+    role: 'admin' as 'admin' | 'employee',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -33,7 +34,7 @@ export default function SignUpPage() {
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!formData.companyName.trim()) errs.companyName = 'Company name is required.';
+    if (formData.role === 'admin' && !formData.companyName.trim()) errs.companyName = 'Company name is required.';
     if (!formData.firstName.trim()) errs.firstName = 'First name is required.';
     if (!formData.lastName.trim()) errs.lastName = 'Last name is required.';
     if (!formData.email.trim()) errs.email = 'Email is required.';
@@ -57,7 +58,8 @@ export default function SignUpPage() {
       lastName: formData.lastName,
       email: formData.email,
       phone: formData.phone,
-      password: formData.password
+      password: formData.password,
+      role: formData.role
     });
 
     if (result.success && result.loginId) {
@@ -84,19 +86,35 @@ export default function SignUpPage() {
         {/* Form Card */}
         <div className="bg-surface-800 border border-surface-700 rounded-2xl p-8 shadow-xl">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Company Name */}
+            {/* Role Selection */}
             <div>
-              <label className="block text-xs font-semibold text-surface-400 uppercase tracking-wide mb-1.5">Company Name</label>
-              <input
-                type="text"
-                value={formData.companyName}
-                onChange={e => handleChange('companyName', e.target.value)}
-                placeholder="NovaTech Solutions"
+              <label className="block text-xs font-semibold text-surface-400 uppercase tracking-wide mb-1.5">I am registering as</label>
+              <select
+                value={formData.role}
+                onChange={e => handleChange('role', e.target.value)}
                 className="w-full bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-colors"
                 disabled={isLoading}
-              />
-              {errors.companyName && <p className="text-xs text-[#ef4444] mt-1.5 font-medium">{errors.companyName}</p>}
+              >
+                <option value="admin">Admin / CEO (Create New Company)</option>
+                <option value="employee">Employee (Join Existing Company)</option>
+              </select>
             </div>
+
+            {/* Company Name (Only for Admin) */}
+            {formData.role === 'admin' && (
+              <div className="animate-fade-in">
+                <label className="block text-xs font-semibold text-surface-400 uppercase tracking-wide mb-1.5">Company Name</label>
+                <input
+                  type="text"
+                  value={formData.companyName}
+                  onChange={e => handleChange('companyName', e.target.value)}
+                  placeholder="NovaTech Solutions"
+                  className="w-full bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-colors"
+                  disabled={isLoading}
+                />
+                {errors.companyName && <p className="text-xs text-[#ef4444] mt-1.5 font-medium">{errors.companyName}</p>}
+              </div>
+            )}
 
             {/* Name Row */}
             <div className="grid grid-cols-2 gap-4">
