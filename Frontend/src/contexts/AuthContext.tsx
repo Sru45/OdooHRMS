@@ -3,10 +3,10 @@
  * Includes a dev-only role switcher for demo/testing
  */
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { AuthUser } from '../types';
 import { signIn as authSignIn, getCurrentUser } from '../services/authService';
-import { employees } from '../data/mockData';
+// import removed
 
 interface AuthContextType {
   currentUser: AuthUser | null;
@@ -83,15 +83,24 @@ export function useAuth(): AuthContextType {
 export function DevRoleSwitcher() {
   const { currentUser, switchUser, isAuthenticated, isAdmin } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen && isAdmin) {
+      import('../services/employeeService').then(({ getEmployees }) => {
+        getEmployees().then(data => {
+          setAllUsers(data.map(emp => ({
+            id: emp.id,
+            name: `${emp.firstName} ${emp.lastName}`,
+            role: emp.role,
+            title: emp.title,
+          })));
+        });
+      });
+    }
+  }, [isOpen, isAdmin]);
 
   if (!isAuthenticated || !isAdmin) return null;
-
-  const allUsers = employees.map(emp => ({
-    id: emp.id,
-    name: `${emp.firstName} ${emp.lastName}`,
-    role: emp.role,
-    title: emp.title,
-  }));
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
