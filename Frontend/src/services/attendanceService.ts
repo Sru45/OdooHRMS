@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { AttendanceRecord } from '../types';
+import { getLocalISODate } from '../utils/formatters';
 
 export async function getAttendanceRecords(): Promise<AttendanceRecord[]> {
   const { data, error } = await supabase.from('attendance').select('*');
@@ -32,7 +33,7 @@ export async function getAttendanceByDateRange(startDate: string, endDate: strin
 }
 
 export async function checkIn(employeeId: string): Promise<AttendanceRecord | null> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalISODate();
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const id = 'att-' + Date.now();
   const { data, error } = await supabase.from('attendance').insert([{
@@ -51,7 +52,7 @@ export async function checkIn(employeeId: string): Promise<AttendanceRecord | nu
 }
 
 export async function checkOut(employeeId: string): Promise<AttendanceRecord | null> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalISODate();
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   
   // Find today's record
@@ -70,3 +71,4 @@ export async function checkOut(employeeId: string): Promise<AttendanceRecord | n
   if (error) return null;
   return data as AttendanceRecord;
 }
+

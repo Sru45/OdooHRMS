@@ -22,3 +22,11 @@ export function formatDate(date: string | Date, style: 'short' | 'medium' = 'med
   
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
+
+/**
+ * Get current date in YYYY-MM-DD format based on local timezone (not UTC)
+ */
+export function getLocalISODate(date: Date = new Date()): string {
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().split('T')[0];
+}

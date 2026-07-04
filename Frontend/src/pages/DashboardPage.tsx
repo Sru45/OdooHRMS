@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getEmployees } from '../services/employeeService';
 import { getAttendanceRecords, checkIn, checkOut } from '../services/attendanceService';
 import { seedSupabase } from '../scripts/seedSupabase';
-import { formatDate } from '../utils/formatters';
+import { formatDate, getLocalISODate } from '../utils/formatters';
 import type { Employee, EmployeeStatusDot } from '../types';
 import { Users, UserCheck, CalendarOff, UserX, Clock, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -113,6 +113,7 @@ function AdminDashboard() {
 
   useEffect(() => {
     async function load() {
+      const today = getLocalISODate();
       const emps = await getEmployees();
       const atts = await getAttendanceRecords();
       setEmployees(emps);
@@ -141,7 +142,7 @@ function AdminDashboard() {
     );
   }, [search, employees]);
   
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalISODate();
   const todayAttendance = attendance.filter(a => a.date === today);
   const presentCount = todayAttendance.filter(a => a.status === 'present').length;
   const onLeaveCount = todayAttendance.filter(a => a.status === 'leave').length;

@@ -11,6 +11,7 @@ import type { AttendanceRecord, Employee } from '../types';
 import { Search, ChevronLeft, ChevronRight, Clock, CalendarIcon, CheckCircle2, ArrowRight, CalendarOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { getLocalISODate } from '../utils/formatters';
 
 export default function AttendancePage() {
   const { isAdmin } = useAuth();
@@ -18,7 +19,7 @@ export default function AttendancePage() {
 }
 
 function AdminAttendanceView() {
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => getLocalISODate());
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   
@@ -67,11 +68,11 @@ function AdminAttendanceView() {
   const navigateDate = (dir: number) => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() + dir);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(getLocalISODate(d));
   };
 
   const setToday = () => {
-    setSelectedDate(new Date().toISOString().split('T')[0]);
+    setSelectedDate(getLocalISODate());
   };
 
   return (
@@ -232,7 +233,7 @@ function EmployeeAttendanceView() {
     return { daysPresent: present, leavesCount: leaves, totalWorkingDays };
   }, [records]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalISODate();
   const todayRecord = records.find(r => r.date === todayStr);
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
   const needsCheckIn = (!todayRecord || todayRecord.status === 'absent') && isCurrentMonth;
